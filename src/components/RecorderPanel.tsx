@@ -1,15 +1,22 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowLeftRight,
   Circle,
+  Download,
   Globe,
   Lock,
   Play,
   Save,
   Square,
   Trash2,
+  TrendingUp,
 } from 'lucide-react';
 import { requestMicrophoneStream, stopMediaStream } from '../audio/audioContext';
 import { analyzeAudioBlob, pickSupportedAudioMimeType } from '../audio/recordingAnalyzer';
+import {
+  buildRecordingTimeline,
+  compareRecordings,
+} from '../core/recordingComparison';
 import { FREE_MAX_RECORDINGS } from '../services/billing';
 import { getRecordingBlob } from '../services/recordingDb';
 import type { ObjectUrlRegistry } from '../services/sessionStore';
@@ -20,6 +27,8 @@ import type {
   RecordingAnalysis,
   SavedRecordingMeta,
 } from '../types/music';
+import { triggerFileDownload } from '../utils/exporters';
+import { formatJalaliShortFa } from '../utils/jalali';
 import { formatDurationFa, INSTRUMENT_LABELS_FA, toPersianDigits } from '../utils/persian';
 
 interface RecorderPanelProps {
@@ -68,6 +77,9 @@ export const RecorderPanel: React.FC<RecorderPanelProps> = ({
   const [titleInput, setTitleInput] = useState('');
   const [errorFa, setErrorFa] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [compareAId, setCompareAId] = useState<string>('');
+  const [compareBId, setCompareBId] = useState<string>('');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -81,11 +93,35 @@ export const RecorderPanel: React.FC<RecorderPanelProps> = ({
     setPendingUrl(null);
     setAnalysis(null);
     setPlayingId(null);
+    setCompareAId('');
+    setCompareBId('');
     if (audioElRef.current) {
       audioElRef.current.pause();
       audioElRef.current.src = '';
     }
   }, [ownerUid]);
+
+  // Auto-select oldest & newest recordings for Before/After comparison
+  useEffect(() => {
+    if (recordings.length >= 2) {
+      if (!recordings.some((r) => r.id === compareAId)) {
+        setCompareAId(recordings[recordings.length - 1].id);
+      }
+      if (!recordings.some((r) => r.id === compareBId)) {
+        setCompareBId(recordings[0].id);
+      }
+    }
+  }, [compareAId, compareBId, recordings]);
+
+  const comparison = useMemo(() => {
+    if (recordings.length < 2) return null;
+    const a = recordings.find((r) => r.id === compareAId) ?? recordings[recordings.length - 1];
+    const b = recordings.find((r) => r.id === compareBId) ?? recordings[0];
+    if (!a || !b || a.id === b.id) return null;
+    return compareRecordings(a, b);
+  }, [compareAId, compareBId, recordings]);
+
+  const timelinePoints = useMemo(() => buildRecordingTimeline(recordings), [recordings]);
 
   const startRecording = async () => {
     setErrorFa(null);
@@ -152,7 +188,6 @@ export const RecorderPanel: React.FC<RecorderPanelProps> = ({
     setIsRecording(false);
   };
 
-  // Support automatic recording synced to Practice Studio playback/call-and-response
   useEffect(() => {
     if (!autoRecord) return;
     if (externalTriggerState === 'start' && !isRecording) {
@@ -223,12 +258,22 @@ export const RecorderPanel: React.FC<RecorderPanelProps> = ({
     setPlayingId(rec.id);
   };
 
+  const handleDownloadSaved = async (rec: SavedRecordingMeta) => {
+    const blob = await getRecordingBlob(ownerUid, rec.id);
+    if (!blob) {
+      setErrorFa('فایل صوتی محلی برای دانلود روی این دستگاه موجود نیست.');
+      return;
+    }
+    const ext = blob.type.includes('ogg') ? 'ogg' : blob.type.includes('mp4') ? 'm4a' : 'webm';
+    triggerFileDownload(blob, `navanegar-${rec.id}.${ext}`);
+  };
+
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/85">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-            ضبط، تحلیل پس از اجرا و بایگانی صوتی (IndexedDB)
+            ضبط، تحلیل پس از اجرا و مقایسه پیشرفت ضبط‌ها (Before / After)
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             {isPro
@@ -238,6 +283,21 @@ export const RecorderPanel: React.FC<RecorderPanelProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {recordings.length >= 2 && (
+            <button
+              type="button"
+              onClick={() => setCompareOpen((v) => !v)}
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition ${
+                compareOpen
+                  ? 'border-amber-500 bg-amber-500 text-slate-950'
+                  : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+              }`}
+            >
+              <ArrowLeftRight className="h-3.5 w-3.5" />
+              مقایسه قبل / بعد ({toPersianDigits(recordings.length)})
+            </button>
+          )}
+
           <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100/80 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
             <input
               type="checkbox"
@@ -245,7 +305,7 @@ export const RecorderPanel: React.FC<RecorderPanelProps> = ({
               onChange={(e) => onToggleAutoRecord(e.target.checked)}
               className="accent-teal-600"
             />
-            ضبط خودکار هنگام تمرین
+            ضبط خودکار
           </label>
 
           <button
@@ -257,7 +317,11 @@ export const RecorderPanel: React.FC<RecorderPanelProps> = ({
                 : 'bg-slate-900 hover:bg-slate-800 dark:bg-teal-600 dark:hover:bg-teal-700'
             }`}
           >
-            {isRecording ? <Square className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5 fill-rose-500 text-rose-500" />}
+            {isRecording ? (
+              <Square className="h-3.5 w-3.5" />
+            ) : (
+              <Circle className="h-3.5 w-3.5 fill-rose-500 text-rose-500" />
+            )}
             {isRecording
               ? `توقف ضبط (${formatDurationFa(elapsedSec)})`
               : 'ضبط دستی قطعه'}
@@ -268,6 +332,144 @@ export const RecorderPanel: React.FC<RecorderPanelProps> = ({
       {errorFa && (
         <div className="mt-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-600 dark:text-rose-300">
           {errorFa}
+        </div>
+      )}
+
+      {/* Feature 9: Before/After Recording Comparison & Progress Timeline */}
+      {compareOpen && comparison && (
+        <div className="mt-3 rounded-2xl border border-amber-500/35 bg-amber-500/5 p-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-xs font-extrabold text-amber-700 dark:text-amber-300">
+              <TrendingUp className="h-4 w-4" />
+              مقایسه تحلیلی اجرای قدیم در برابر اجرای جدید
+            </div>
+            <div className="flex flex-wrap gap-2 text-[11px]">
+              <select
+                value={compareAId}
+                onChange={(e) => setCompareAId(e.target.value)}
+                aria-label="ضبط اول برای مقایسه"
+                className="rounded-lg border border-slate-300 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-900"
+              >
+                {recordings.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    الف: {r.title} ({toPersianDigits(r.avgAccuracy)}٪)
+                  </option>
+                ))}
+              </select>
+              <select
+                value={compareBId}
+                onChange={(e) => setCompareBId(e.target.value)}
+                aria-label="ضبط دوم برای مقایسه"
+                className="rounded-lg border border-slate-300 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-900"
+              >
+                {recordings.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    ب: {r.title} ({toPersianDigits(r.avgAccuracy)}٪)
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3 text-center text-xs">
+            <div className="rounded-xl bg-white/85 p-2.5 dark:bg-slate-900/75">
+              <div className="text-[10px] text-slate-500">تغییر دقت کوک (Δ)</div>
+              <div
+                className={`mt-0.5 text-base font-black ${
+                  comparison.accuracyDelta >= 0
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-rose-500'
+                }`}
+              >
+                {comparison.accuracyDelta >= 0 ? '+' : ''}
+                {toPersianDigits(comparison.accuracyDelta)}٪
+              </div>
+              <div className="text-[10px] text-slate-500">
+                {toPersianDigits(comparison.earlier.avgAccuracy)}٪ ←{' '}
+                {toPersianDigits(comparison.later.avgAccuracy)}٪
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-white/85 p-2.5 dark:bg-slate-900/75">
+              <div className="text-[10px] text-slate-500">کاهش خطای سنت</div>
+              <div
+                className={`mt-0.5 text-base font-black ${
+                  comparison.centsErrorReduction >= 0
+                    ? 'text-teal-600 dark:text-teal-300'
+                    : 'text-amber-600'
+                }`}
+              >
+                {comparison.centsErrorReduction >= 0 ? '↓ ' : '↑ '}
+                {toPersianDigits(Math.abs(comparison.centsErrorReduction))} سنت
+              </div>
+              <div className="text-[10px] text-slate-500">
+                ±{toPersianDigits(comparison.estimatedCentsErrorEarlier)}¢ ← ±
+                {toPersianDigits(comparison.estimatedCentsErrorLater)}¢
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-white/85 p-2.5 dark:bg-slate-900/75">
+              <div className="text-[10px] text-slate-500">پایداری پوش صدا و نفس</div>
+              <div className="mt-0.5 text-base font-black text-sky-600 dark:text-sky-300">
+                {comparison.stabilityDelta >= 0 ? '+' : ''}
+                {toPersianDigits(comparison.stabilityDelta)}٪
+              </div>
+              <div className="text-[10px] text-slate-500">
+                {toPersianDigits(comparison.envelopeStabilityEarlier)}٪ ←{' '}
+                {toPersianDigits(comparison.envelopeStabilityLater)}٪
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+            <p className="font-semibold text-slate-700 dark:text-slate-200">
+              {comparison.verdictFa}
+            </p>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => void handlePlaySaved(comparison.earlier)}
+                className="rounded-lg bg-slate-200 px-2.5 py-1 font-bold text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-200"
+              >
+                پخش قبل ({formatJalaliShortFa(new Date(comparison.earlier.createdAt))})
+              </button>
+              <button
+                type="button"
+                onClick={() => void handlePlaySaved(comparison.later)}
+                className="rounded-lg bg-teal-600 px-2.5 py-1 font-bold text-white hover:bg-teal-700"
+              >
+                پخش بعد ({formatJalaliShortFa(new Date(comparison.later.createdAt))})
+              </button>
+            </div>
+          </div>
+
+          {/* Progress Sparkline SVG */}
+          {timelinePoints.length >= 2 && (
+            <div className="mt-3 rounded-xl bg-slate-950/90 p-2.5">
+              <div className="mb-1 text-[10px] font-bold text-slate-400">
+                نمودار روند دقت کوک در طول ضبط‌های بایگانی:
+              </div>
+              <svg viewBox="0 0 300 54" className="h-12 w-full">
+                <polyline
+                  fill="none"
+                  stroke="#2dd4bf"
+                  strokeWidth="2.5"
+                  points={timelinePoints
+                    .map((pt, i) => {
+                      const x = 10 + (i / (timelinePoints.length - 1)) * 280;
+                      const y = 46 - (Math.min(100, Math.max(0, pt.avgAccuracy)) / 100) * 38;
+                      return `${x.toFixed(1)},${y.toFixed(1)}`;
+                    })
+                    .join(' ')}
+                />
+                {timelinePoints.map((pt, i) => {
+                  const x = 10 + (i / (timelinePoints.length - 1)) * 280;
+                  const y = 46 - (Math.min(100, Math.max(0, pt.avgAccuracy)) / 100) * 38;
+                  return <circle key={pt.id} cx={x} cy={y} r="3.5" fill="#f59e0b" />;
+                })}
+              </svg>
+            </div>
+          )}
         </div>
       )}
 
@@ -369,17 +571,28 @@ export const RecorderPanel: React.FC<RecorderPanelProps> = ({
                   <div className="text-xs font-bold text-slate-800 dark:text-slate-100">
                     {rec.title}
                   </div>
-                  <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
                     <span>دقت {toPersianDigits(rec.avgAccuracy)}٪</span>
                     <span>•</span>
                     <span className="ltr-num">{rec.rmsDb.toFixed(1)} dB</span>
                     <span>•</span>
                     <span>{formatDurationFa(rec.durationSeconds)}</span>
+                    <span>•</span>
+                    <span>{formatJalaliShortFa(new Date(rec.createdAt))}</span>
                   </div>
                 </div>
               </div>
 
               <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => void handleDownloadSaved(rec)}
+                  className="rounded-lg p-1.5 text-slate-500 hover:bg-teal-500/15 hover:text-teal-600"
+                  aria-label="دانلود فایل صوتی"
+                  title="دانلود فایل صوتی"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </button>
                 <button
                   type="button"
                   onClick={() => void onToggleRecordingPublic(rec)}

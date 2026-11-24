@@ -157,12 +157,23 @@ export interface SavedRecordingMeta {
   updatedAt: number;
 }
 
+export interface EarTrainingStats {
+  totalAnswered: number;
+  totalCorrect: number;
+  bestStreak: number;
+  completedSessions: number;
+}
+
 export interface UserLearningState {
   ownerUid: string;
   displayName: string;
   level: LearnerLevel;
   totalPracticeMinutes: number;
   streakDays: number;
+  streakFreezesRemaining?: number;
+  frozenDateKeys?: string[];
+  earTrainingStats?: EarTrainingStats;
+  completedChallengeIds?: string[];
   averageAccuracy: number;
   weakIntervals: string[];
   badges: string[];
@@ -174,6 +185,52 @@ export interface UserLearningState {
   dailyCompletedSteps: string[];
   dailyPlanDateKey: string;
   updatedAt: number;
+}
+
+export type RadifTraditionId = 'mirza_abdollah' | 'mahmoud_karimi' | 'saba' | 'davami';
+
+export type DroneTimbre = 'tanbur' | 'ney' | 'kamancheh';
+export type DroneVoicing = 'base' | 'base_fifth' | 'base_shahed';
+
+export type PercussionInstrument = 'tombak' | 'daf';
+export type IranianGrooveId =
+  | 'chaharmezrab_6_8'
+  | 'reng_sangin_6_8'
+  | 'reng_shad_6_8'
+  | 'pishdaramad_4_4'
+  | 'kereshmeh_3_4'
+  | 'saghinameh_2_4'
+  | 'lang_5_8'
+  | 'lang_7_8';
+
+export type VocalRangePresetId =
+  | 'rast_kuk'
+  | 'chap_kuk'
+  | 'shur_sol'
+  | 'shur_re'
+  | 'shur_la'
+  | 'soprano'
+  | 'alto'
+  | 'tenor'
+  | 'baritone';
+
+export interface TeacherAssignment {
+  version: 1;
+  id: string;
+  titleFa: string;
+  teacherName: string;
+  gushehId: string;
+  traditionId: RadifTraditionId;
+  instrument: InstrumentId;
+  speedPercent: number;
+  loopStart: number;
+  loopEnd: number;
+  transposeSemitones: number;
+  koronMode: KoronMode;
+  targetAccuracyPercent: number;
+  requireWaitMode: boolean;
+  notesFa: string;
+  createdAt: number;
 }
 
 export interface ForumPost {

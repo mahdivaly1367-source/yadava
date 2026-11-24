@@ -5,8 +5,10 @@ import {
   Clock,
   Compass,
   Flame,
+  GraduationCap,
   Mic,
   Play,
+  Share2,
   Sparkles,
   Target,
   TrendingUp,
@@ -15,6 +17,8 @@ import {
 import { getAudioContext, requestMicrophoneStream, stopMediaStream } from '../audio/audioContext';
 import { detectPitchYin } from '../audio/dsp';
 import { playPersianNote } from '../audio/karplusStrong';
+import { EarTrainingLab } from '../components/EarTrainingLab';
+import { PracticeHeatmapAndChallenges } from '../components/PracticeHeatmapAndChallenges';
 import {
   EAR_PLACEMENT_QUESTIONS,
   evaluatePlacementAnswers,
@@ -50,6 +54,10 @@ interface DashboardViewProps {
   onStartGushehPractice: (gushehId: string, focusPanel?: 'dsp' | 'tuner' | 'recorder') => void;
   onToggleDailyStep: (stepId: string) => void;
   onCompletePlacement: (result: PlacementResult) => Promise<void>;
+  onRecordEarAnswer: (isCorrect: boolean) => void;
+  onActivateStreakFreeze: () => void;
+  onOpenTeacherModal: () => void;
+  onOpenExportModal: () => void;
   onOpenExplorer: () => void;
 }
 
@@ -62,6 +70,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onStartGushehPractice,
   onToggleDailyStep,
   onCompletePlacement,
+  onRecordEarAnswer,
+  onActivateStreakFreeze,
+  onOpenTeacherModal,
+  onOpenExportModal,
   onOpenExplorer,
 }) => {
   const [placementOpen, setPlacementOpen] = useState(false);
@@ -256,6 +268,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             >
               <Compass className="h-4 w-4" />
               مرور ۱۷۳ گوشه ردیف
+            </button>
+            <button
+              type="button"
+              onClick={onOpenTeacherModal}
+              className="inline-flex items-center gap-1.5 rounded-2xl border border-amber-400/35 bg-amber-400/15 px-4 py-3 text-xs font-bold text-amber-200 hover:bg-amber-400/25"
+            >
+              <GraduationCap className="h-4 w-4" />
+              کلاس استاد / تکلیف
+            </button>
+            <button
+              type="button"
+              onClick={onOpenExportModal}
+              className="inline-flex items-center gap-1.5 rounded-2xl border border-white/15 bg-white/5 px-3.5 py-3 text-xs font-bold text-slate-200 hover:bg-white/15"
+            >
+              <Share2 className="h-4 w-4" />
+              کارت پیشرفت و خروجی
             </button>
           </div>
         </div>
@@ -577,6 +605,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           })}
         </div>
       </section>
+
+      {/* Feature 3: Microtonal Ear Training Academy */}
+      <EarTrainingLab
+        isPro={isPro}
+        instrument={instrument}
+        a4Hz={a4Hz}
+        koronMode={koronMode}
+        stats={
+          userState.earTrainingStats ?? {
+            totalAnswered: 0,
+            totalCorrect: 0,
+            bestStreak: 0,
+            completedSessions: 0,
+          }
+        }
+        onRecordAnswer={onRecordEarAnswer}
+      />
+
+      {/* Feature 12: Jalali Practice Heatmap, Streak Freeze & Weekly Challenges */}
+      <PracticeHeatmapAndChallenges
+        userState={userState}
+        onActivateFreezeToday={onActivateStreakFreeze}
+        onStartChallengeGusheh={(gid) => onStartGushehPractice(gid, 'dsp')}
+      />
 
       {/* Badges & Session History */}
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">

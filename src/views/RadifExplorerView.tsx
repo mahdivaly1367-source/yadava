@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
+  BookOpen,
   ChevronDown,
   ChevronLeft,
   Crown,
@@ -17,11 +18,17 @@ import {
   isDastgahUnlocked,
   RADIF_SYSTEMS,
 } from '../data/radifData';
+import {
+  getGushehTraditionComparison,
+  RADIF_TRADITIONS,
+  TRADITION_BY_ID,
+} from '../data/radifTraditions';
 import type {
   Gusheh,
   GushehRole,
   InstrumentId,
   KoronMode,
+  RadifTraditionId,
 } from '../types/music';
 import {
   normalizePersian,
@@ -37,6 +44,8 @@ interface RadifExplorerViewProps {
   a4Hz: number;
   koronMode: KoronMode;
   activeGushehId: string;
+  traditionId: RadifTraditionId;
+  onChangeTradition: (id: RadifTraditionId) => void;
   onPracticeGusheh: (gushehId: string) => void;
   onRequestUpgrade: () => void;
 }
@@ -47,6 +56,8 @@ export const RadifExplorerView: React.FC<RadifExplorerViewProps> = ({
   a4Hz,
   koronMode,
   activeGushehId,
+  traditionId,
+  onChangeTradition,
   onPracticeGusheh,
   onRequestUpgrade,
 }) => {
@@ -58,33 +69,37 @@ export const RadifExplorerView: React.FC<RadifExplorerViewProps> = ({
     abuata: true,
     mahur: false,
   });
+  const [compareGusheh, setCompareGusheh] = useState<Gusheh | null>(null);
   const [previewingId, setPreviewingId] = useState<string | null>(null);
   const previewHandleRef = useRef<PhrasePlaybackHandle | null>(null);
 
+  const activeTradition = TRADITION_BY_ID[traditionId];
   const normalizedQuery = normalizePersian(searchQuery);
 
   const filteredSystems = useMemo(() => {
     return RADIF_SYSTEMS.filter((sys) => {
       if (categoryFilter !== 'all' && sys.category !== categoryFilter) return false;
       return true;
-    }).map((sys) => {
-      const sysMatch =
-        normalizedQuery.length > 0 &&
-        (normalizePersian(sys.nameFa).includes(normalizedQuery) ||
-          sys.nameEn.toLowerCase().includes(normalizedQuery));
+    })
+      .map((sys) => {
+        const sysMatch =
+          normalizedQuery.length > 0 &&
+          (normalizePersian(sys.nameFa).includes(normalizedQuery) ||
+            sys.nameEn.toLowerCase().includes(normalizedQuery));
 
-      const matchingGushehs = sys.gushehs.filter((g) => {
-        if (roleFilter !== 'all' && g.role !== roleFilter) return false;
-        if (!normalizedQuery || sysMatch) return true;
-        return (
-          normalizePersian(g.nameFa).includes(normalizedQuery) ||
-          g.nameEn.toLowerCase().includes(normalizedQuery) ||
-          normalizePersian(g.descriptionFa).includes(normalizedQuery)
-        );
-      });
+        const matchingGushehs = sys.gushehs.filter((g) => {
+          if (roleFilter !== 'all' && g.role !== roleFilter) return false;
+          if (!normalizedQuery || sysMatch) return true;
+          return (
+            normalizePersian(g.nameFa).includes(normalizedQuery) ||
+            g.nameEn.toLowerCase().includes(normalizedQuery) ||
+            normalizePersian(g.descriptionFa).includes(normalizedQuery)
+          );
+        });
 
-      return { system: sys, gushehs: matchingGushehs };
-    }).filter((entry) => entry.gushehs.length > 0);
+        return { system: sys, gushehs: matchingGushehs };
+      })
+      .filter((entry) => entry.gushehs.length > 0);
   }, [categoryFilter, normalizedQuery, roleFilter]);
 
   const totalVisibleGushehs = useMemo(
@@ -106,7 +121,7 @@ export const RadifExplorerView: React.FC<RadifExplorerViewProps> = ({
     setPreviewingId(g.id);
     previewHandleRef.current = playGushehPhrase(g.melody, {
       instrument,
-      bpm: g.practiceLoop.defaultBpm,
+      bpm: Math.round(g.practiceLoop.defaultBpm * activeTradition.tempoFactor),
       speedMultiplier: 1.0,
       a4Hz,
       koronMode,
@@ -148,6 +163,35 @@ export const RadifExplorerView: React.FC<RadifExplorerViewProps> = ({
               آزادسازی کل ۱۷۳ گوشه
             </button>
           )}
+        </div>
+
+        {/* Feature 5: Radif Repertoire Tradition Switcher (Instrumental vs Vocal Masters) */}
+        <div className="mt-4 rounded-2xl border border-teal-500/25 bg-teal-500/5 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-xs font-extrabold text-teal-700 dark:text-teal-300">
+              <BookOpen className="h-4 w-4" />
+              روایت فعال ردیف (سازی ↔ آوازی):
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {RADIF_TRADITIONS.map((trad) => (
+                <button
+                  key={trad.id}
+                  type="button"
+                  onClick={() => onChangeTradition(trad.id)}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                    traditionId === trad.id
+                      ? 'bg-teal-600 text-white shadow-sm'
+                      : 'bg-white text-slate-700 hover:bg-teal-50 dark:bg-slate-800 dark:text-slate-300'
+                  }`}
+                >
+                  {trad.shortNameFa} ({trad.categoryFa === 'ردیف آوازی' ? 'آوازی' : 'سازی'})
+                </button>
+              ))}
+            </div>
+          </div>
+          <p className="mt-2 text-[11px] leading-5 text-slate-600 dark:text-slate-300">
+            <strong>{activeTradition.masterFa}:</strong> {activeTradition.characterFa}
+          </p>
         </div>
 
         {/* Search & Filter Controls */}
@@ -208,6 +252,60 @@ export const RadifExplorerView: React.FC<RadifExplorerViewProps> = ({
           نمایش {toPersianDigits(totalVisibleGushehs)} گوشه در {toPersianDigits(filteredSystems.length)} نظام
         </div>
       </div>
+
+      {/* Side-by-Side 4-Master Comparison Matrix Drawer when a Gusheh is selected for comparison */}
+      {compareGusheh && (
+        <div className="rounded-3xl border border-amber-500/35 bg-white p-5 shadow-lg dark:bg-slate-900">
+          <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-3 dark:border-slate-800">
+            <div>
+              <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                مقایسه ۴ روایت ردیف برای گوشه «{compareGusheh.nameFa}»
+              </h2>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                تفاوت جمله‌بندی، نت متغیر، زینت‌ها و الگوی فرود میان میرزاعبدالله، محمود کریمی، صبا و دوامی
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCompareGusheh(null)}
+              className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+            >
+              بستن مقایسه
+            </button>
+          </div>
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {getGushehTraditionComparison(compareGusheh).map((item) => {
+              const info = TRADITION_BY_ID[item.traditionId];
+              return (
+                <div
+                  key={item.traditionId}
+                  className={`rounded-2xl border p-3.5 text-xs ${
+                    item.traditionId === traditionId
+                      ? 'border-teal-500 bg-teal-500/8'
+                      : 'border-slate-200 bg-slate-50/75 dark:border-slate-800 dark:bg-slate-800/50'
+                  }`}
+                >
+                  <div className="font-extrabold text-slate-900 dark:text-white">
+                    {info.nameFa}
+                  </div>
+                  <div className="mt-0.5 text-[10px] font-bold text-teal-600 dark:text-teal-300">
+                    {info.categoryFa}
+                  </div>
+                  <p className="mt-2 leading-5 text-slate-600 dark:text-slate-300">
+                    {item.phrasingFa}
+                  </p>
+                  <div className="mt-2 border-t border-slate-200/70 pt-2 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                    <strong>فرود:</strong> {item.foroudCueFa}
+                  </div>
+                  <div className="mt-1 text-[10px] font-semibold text-amber-600 dark:text-amber-300">
+                    {item.recommendedKoronFa}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Hierarchical Tree of Systems & Gushehs */}
       <div className="space-y-3">
@@ -323,24 +421,33 @@ export const RadifExplorerView: React.FC<RadifExplorerViewProps> = ({
                             </div>
                           </div>
 
-                          <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-200/70 pt-2.5 dark:border-slate-700/70">
-                            <button
-                              type="button"
-                              onClick={() => togglePreview(g, unlocked)}
-                              className="inline-flex items-center gap-1 rounded-xl bg-slate-200/80 px-2.5 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200"
-                            >
-                              {isPreview ? (
-                                <>
-                                  <Square className="h-3 w-3 text-rose-500" />
-                                  توقف
-                                </>
-                              ) : (
-                                <>
-                                  <Volume2 className="h-3 w-3 text-teal-600 dark:text-teal-400" />
-                                  شنیدن نمونه
-                                </>
-                              )}
-                            </button>
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-1.5 border-t border-slate-200/70 pt-2.5 dark:border-slate-700/70">
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => togglePreview(g, unlocked)}
+                                className="inline-flex items-center gap-1 rounded-xl bg-slate-200/80 px-2.5 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200"
+                              >
+                                {isPreview ? (
+                                  <>
+                                    <Square className="h-3 w-3 text-rose-500" />
+                                    توقف
+                                  </>
+                                ) : (
+                                  <>
+                                    <Volume2 className="h-3 w-3 text-teal-600 dark:text-teal-400" />
+                                    شنیدن
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setCompareGusheh(g)}
+                                className="rounded-xl bg-amber-500/12 px-2 py-1.5 text-[10px] font-bold text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
+                              >
+                                مقایسه ۴ روایت
+                              </button>
+                            </div>
 
                             <button
                               type="button"
@@ -356,7 +463,7 @@ export const RadifExplorerView: React.FC<RadifExplorerViewProps> = ({
                               {unlocked ? (
                                 <>
                                   <Play className="h-3 w-3" />
-                                  تمرین در کارگاه
+                                  تمرین
                                 </>
                               ) : (
                                 <>

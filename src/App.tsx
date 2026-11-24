@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { AuthModal } from './components/AuthModal';
+import { ExportShareModal } from './components/ExportShareModal';
 import { Header } from './components/Header';
 import { PaywallModal } from './components/PaywallModal';
+import { TeacherAssignmentModal } from './components/TeacherAssignmentModal';
+import { decodeAssignmentInput } from './core/assignments';
+import { computeStreakWithFreeze } from './core/challenges';
 import {
   computeEarnedBadges,
   reviewSrsCard,
@@ -42,9 +46,12 @@ import type {
   KoronMode,
   PlacementResult,
   PracticeSessionRecord,
+  RadifTraditionId,
   SavedRecordingMeta,
+  TeacherAssignment,
   UserLearningState,
 } from './types/music';
+import { toIsoDateKey } from './utils/jalali';
 import { CommunityView } from './views/CommunityView';
 import { DashboardView } from './views/DashboardView';
 import { ModulationMapView } from './views/ModulationMapView';
@@ -76,11 +83,13 @@ export function App() {
     loadScopedUserState(GUEST_OWNER_UID)
   );
 
-  // Global Studio Instrument & Microtonal Settings
+  // Global Studio Instrument, Microtonal & Repertoire Settings
   const [activeGushehId, setActiveGushehId] = useState<string>(ALL_GUSHEHS[0].id);
   const [instrument, setInstrument] = useState<InstrumentId>('tar');
   const [a4Hz, setA4Hz] = useState<number>(440.0);
   const [koronMode, setKoronMode] = useState<KoronMode>('standard_50');
+  const [traditionId, setTraditionId] = useState<RadifTraditionId>('mirza_abdollah');
+  const [activeAssignment, setActiveAssignment] = useState<TeacherAssignment | null>(null);
 
   // Freemium Billing Entitlement
   const [entitlement, setEntitlement] = useState<BillingEntitlement>(() =>
@@ -90,6 +99,8 @@ export function App() {
   // Modals & Network state
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [teacherModalOpen, setTeacherModalOpen] = useState(false);
   const [isOffline, setIsOffline] = useState<boolean>(
     typeof navigator !== 'undefined' ? navigator.onLine === false : false
   );
@@ -129,12 +140,34 @@ export function App() {
     };
   }, []);
 
-  /**
-   * Atomic session transition (Guest <-> User A <-> User B):
-   * 1) Aborts all in-flight Firestore sync operations via SessionLifecycleController
-   * 2) Immediately revokes every Blob ObjectURL from the prior account
-   * 3) Clears & reloads cleanly scoped UserLearningState for `nextUid`
-   */
+  const handleLoadTeacherAssignment = useCallback(
+    (assignment: TeacherAssignment) => {
+      if (!isGushehUnlocked(assignment.gushehId, entitlement.isPro)) {
+        setPaywallOpen(true);
+        return;
+      }
+      setActiveAssignment(assignment);
+      setActiveGushehId(assignment.gushehId);
+      setInstrument(assignment.instrument);
+      setKoronMode(assignment.koronMode);
+      setTraditionId(assignment.traditionId);
+      setStudioSubPanel('dsp');
+      setActiveTab('studio');
+    },
+    [entitlement.isPro]
+  );
+
+  // Auto-detect offline Teacher Assignment URL hash (#assignment=NVN1-...) on load
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.location.hash && window.location.hash.includes('assignment=')) {
+      const decoded = decodeAssignmentInput(window.location.hash);
+      if (decoded) {
+        handleLoadTeacherAssignment(decoded);
+      }
+    }
+  }, [handleLoadTeacherAssignment]);
+
   const transitionOwnerSession = useCallback(
     (nextUid: string, nextDisplayName?: string) => {
       const safeUid = nextUid.trim() || GUEST_OWNER_UID;
@@ -146,7 +179,6 @@ export function App() {
     [lifecycle]
   );
 
-  // Subscribe to Firebase Auth changes when configured
   useEffect(() => {
     const { auth } = getFirebaseServices();
     if (!auth) return;
@@ -160,14 +192,12 @@ export function App() {
     return () => unsub();
   }, [transitionOwnerSession]);
 
-  // Ensure active gusheh remains unlocked if Pro expires or resets
   useEffect(() => {
     if (!isGushehUnlocked(activeGushehId, entitlement.isPro)) {
       setActiveGushehId(ALL_GUSHEHS[0].id);
     }
   }, [activeGushehId, entitlement.isPro]);
 
-  // Cleanup all ObjectURLs on unmount
   useEffect(() => {
     return () => {
       lifecycle.objectUrls.revokeAll();
@@ -201,6 +231,44 @@ export function App() {
     });
   };
 
+  const handleRecordEarAnswer = (isCorrect: boolean) => {
+    updateScopedState((prev) => {
+      const curr = prev.earTrainingStats ?? {
+        totalAnswered: 0,
+        totalCorrect: 0,
+        bestStreak: 0,
+        completedSessions: 0,
+      };
+      const nextCorrect = curr.totalCorrect + (isCorrect ? 1 : 0);
+      return {
+        ...prev,
+        earTrainingStats: {
+          totalAnswered: curr.totalAnswered + 1,
+          totalCorrect: nextCorrect,
+          bestStreak: isCorrect ? Math.max(curr.bestStreak, nextCorrect) : curr.bestStreak,
+          completedSessions: curr.completedSessions + (isCorrect ? 1 : 0),
+        },
+        updatedAt: Date.now(),
+      };
+    });
+  };
+
+  const handleActivateStreakFreeze = () => {
+    const todayKey = toIsoDateKey(new Date());
+    updateScopedState((prev) => {
+      const remaining = prev.streakFreezesRemaining ?? 2;
+      const frozen = prev.frozenDateKeys ?? [];
+      if (remaining <= 0 || frozen.includes(todayKey)) return prev;
+      return {
+        ...prev,
+        streakFreezesRemaining: remaining - 1,
+        frozenDateKeys: [...frozen, todayKey],
+        streakDays: Math.max(1, prev.streakDays),
+        updatedAt: Date.now(),
+      };
+    });
+  };
+
   const handleSavePracticeSession = async (session: PracticeSessionRecord) => {
     const capturedOwner = ownerUid;
     const capturedEpoch = lifecycle.currentEpoch;
@@ -220,7 +288,14 @@ export function App() {
     const avgAccuracy = Math.round(
       nextSessions.reduce((acc, s) => acc + s.accuracyPercent, 0) / nextSessions.length
     );
-    const nextStreak = Math.max(1, userState.streakDays || 1);
+
+    const streakEval = computeStreakWithFreeze(
+      nextSessions,
+      userState.frozenDateKeys ?? [],
+      userState.streakFreezesRemaining ?? 2,
+      session.completedAt
+    );
+    const nextStreak = Math.max(1, streakEval.streakDays, userState.streakDays || 1);
     const nextBadges = computeEarnedBadges(
       nextSessions,
       nextStreak,
@@ -253,7 +328,6 @@ export function App() {
     setUserState(nextState);
     saveScopedUserState(nextState);
 
-    // Atomic writeBatch sync to Firestore
     await commitPracticeSessionBatch({
       ownerUid: capturedOwner,
       session,
@@ -296,7 +370,6 @@ export function App() {
     const capturedEpoch = lifecycle.currentEpoch;
     const signal = lifecycle.signal;
 
-    // 1. Save audio blob into owner-prefixed IndexedDB key `${ownerUid}::${id}`
     await saveRecordingBlob(capturedOwner, meta.id, blob);
 
     if (!lifecycle.isCurrent(capturedOwner, capturedEpoch)) return;
@@ -306,7 +379,6 @@ export function App() {
       updatedAt: Date.now(),
     }));
 
-    // 2. Sync metadata to cloud `saved_recordings` if signed in
     await createRecordingMetaCloud(meta, signal);
   };
 
@@ -414,6 +486,10 @@ export function App() {
             onStartGushehPractice={handleStartGushehPractice}
             onToggleDailyStep={handleToggleDailyStep}
             onCompletePlacement={handleCompletePlacement}
+            onRecordEarAnswer={handleRecordEarAnswer}
+            onActivateStreakFreeze={handleActivateStreakFreeze}
+            onOpenTeacherModal={() => setTeacherModalOpen(true)}
+            onOpenExportModal={() => setExportModalOpen(true)}
             onOpenExplorer={() => setActiveTab('explorer')}
           />
         )}
@@ -430,6 +506,12 @@ export function App() {
             onChangeA4Hz={setA4Hz}
             koronMode={koronMode}
             onChangeKoronMode={setKoronMode}
+            traditionId={traditionId}
+            onChangeTradition={setTraditionId}
+            activeAssignment={activeAssignment}
+            onClearAssignment={() => setActiveAssignment(null)}
+            onOpenExportModal={() => setExportModalOpen(true)}
+            onOpenTeacherModal={() => setTeacherModalOpen(true)}
             isPro={entitlement.isPro}
             recordings={userState.recordings}
             objectUrlRegistry={lifecycle.objectUrls}
@@ -449,6 +531,8 @@ export function App() {
             a4Hz={a4Hz}
             koronMode={koronMode}
             activeGushehId={activeGusheh.id}
+            traditionId={traditionId}
+            onChangeTradition={setTraditionId}
             onPracticeGusheh={(id) => handleStartGushehPractice(id, 'dsp')}
             onRequestUpgrade={() => setPaywallOpen(true)}
           />
@@ -495,6 +579,25 @@ export function App() {
         onGoogleSignIn={handleGoogleSignIn}
         onSwitchLocalProfile={(uid, name) => transitionOwnerSession(uid, name)}
         onSignOut={handleSignOut}
+      />
+
+      <ExportShareModal
+        open={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        gusheh={activeGusheh}
+        instrument={instrument}
+        a4Hz={a4Hz}
+        koronMode={koronMode}
+        userState={userState}
+      />
+
+      <TeacherAssignmentModal
+        open={teacherModalOpen}
+        onClose={() => setTeacherModalOpen(false)}
+        activeGusheh={activeGusheh}
+        instrument={instrument}
+        koronMode={koronMode}
+        onLoadAssignment={handleLoadTeacherAssignment}
       />
     </div>
   );
