@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
+import { AudioGlossaryModal } from './components/AudioGlossaryModal';
 import { AuthModal } from './components/AuthModal';
 import { ExportShareModal } from './components/ExportShareModal';
 import { Header } from './components/Header';
@@ -101,6 +102,7 @@ export function App() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [teacherModalOpen, setTeacherModalOpen] = useState(false);
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
   const [isOffline, setIsOffline] = useState<boolean>(
     typeof navigator !== 'undefined' ? navigator.onLine === false : false
   );
@@ -267,6 +269,33 @@ export function App() {
         updatedAt: Date.now(),
       };
     });
+  };
+
+  const handleTogglePathStep = (stepId: string) => {
+    updateScopedState((prev) => {
+      const curr = prev.completedPathStepIds ?? [];
+      const exists = curr.includes(stepId);
+      return {
+        ...prev,
+        completedPathStepIds: exists
+          ? curr.filter((id) => id !== stepId)
+          : [...curr, stepId],
+        updatedAt: Date.now(),
+      };
+    });
+  };
+
+  const handleNewBestBreath = (seconds: number) => {
+    updateScopedState((prev) => ({
+      ...prev,
+      bestBreathSeconds: Math.max(prev.bestBreathSeconds ?? 0, seconds),
+      updatedAt: Date.now(),
+    }));
+  };
+
+  const handleImportBackupState = (importedState: UserLearningState) => {
+    setUserState(importedState);
+    saveScopedUserState(importedState);
   };
 
   const handleSavePracticeSession = async (session: PracticeSessionRecord) => {
@@ -473,6 +502,7 @@ export function App() {
         isOffline={isOffline}
         onOpenAuth={() => setAuthModalOpen(true)}
         onOpenPaywall={() => setPaywallOpen(true)}
+        onOpenGlossary={() => setGlossaryOpen(true)}
       />
 
       <main className="mx-auto max-w-7xl px-4 py-5">
@@ -488,9 +518,11 @@ export function App() {
             onCompletePlacement={handleCompletePlacement}
             onRecordEarAnswer={handleRecordEarAnswer}
             onActivateStreakFreeze={handleActivateStreakFreeze}
+            onTogglePathStep={handleTogglePathStep}
             onOpenTeacherModal={() => setTeacherModalOpen(true)}
             onOpenExportModal={() => setExportModalOpen(true)}
             onOpenExplorer={() => setActiveTab('explorer')}
+            onRequestUpgrade={() => setPaywallOpen(true)}
           />
         )}
 
@@ -513,6 +545,8 @@ export function App() {
             onOpenExportModal={() => setExportModalOpen(true)}
             onOpenTeacherModal={() => setTeacherModalOpen(true)}
             isPro={entitlement.isPro}
+            bestBreathSeconds={userState.bestBreathSeconds ?? 0}
+            onNewBestBreath={handleNewBestBreath}
             recordings={userState.recordings}
             objectUrlRegistry={lifecycle.objectUrls}
             initialSubPanel={studioSubPanel}
@@ -589,6 +623,15 @@ export function App() {
         a4Hz={a4Hz}
         koronMode={koronMode}
         userState={userState}
+        onImportBackupState={handleImportBackupState}
+      />
+
+      <AudioGlossaryModal
+        open={glossaryOpen}
+        onClose={() => setGlossaryOpen(false)}
+        instrument={instrument}
+        a4Hz={a4Hz}
+        koronMode={koronMode}
       />
 
       <TeacherAssignmentModal

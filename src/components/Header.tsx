@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  BookOpen,
   Compass,
   Crown,
   LayoutDashboard,
@@ -25,6 +26,7 @@ interface HeaderProps {
   isOffline: boolean;
   onOpenAuth: () => void;
   onOpenPaywall: () => void;
+  onOpenGlossary?: () => void;
 }
 
 const NAV_ITEMS: Array<{ id: AppTab; labelFa: string; icon: React.ComponentType<{ className?: string }> }> = [
@@ -46,6 +48,7 @@ export const Header: React.FC<HeaderProps> = ({
   isOffline,
   onOpenAuth,
   onOpenPaywall,
+  onOpenGlossary,
 }) => {
   const isGuest = ownerUid === GUEST_OWNER_UID;
 
@@ -112,6 +115,18 @@ export const Header: React.FC<HeaderProps> = ({
                 <WifiOff className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">آفلاین</span>
               </span>
+            )}
+
+            {onOpenGlossary && (
+              <button
+                type="button"
+                onClick={onOpenGlossary}
+                title="فرهنگ صوتی اصطلاحات ردیف"
+                className="inline-flex items-center gap-1 rounded-xl border border-amber-500/35 bg-amber-500/10 px-2.5 py-1.5 text-xs font-bold text-amber-700 transition hover:bg-amber-500/20 dark:text-amber-300"
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                <span className="hidden md:inline">فرهنگ صوتی</span>
+              </button>
             )}
 
             <button

@@ -1,5 +1,10 @@
 import { frequencyToPersianNote } from '../data/musicTheory';
-import type { KoronMode, PersianNoteSpec, RecordingAnalysis } from '../types/music';
+import type {
+  KoronMode,
+  PersianNoteSpec,
+  RecordedPitchPoint,
+  RecordingAnalysis,
+} from '../types/music';
 import { getAudioContext } from './audioContext';
 import { detectPitchYin } from './dsp';
 
@@ -54,11 +59,12 @@ export function analyzePcmSamples(
   }
   const envelope = rawEnvelope.map((v) => Math.max(0.06, Math.round((v / maxPeak) * 100) / 100));
 
-  // 3. Offline YIN Pitch Accuracy
+  // 3. Offline YIN Pitch Accuracy + Time-Indexed Pitch Contour (for Overlay Replay!)
   const frameSize = 2048;
   const hopSize = Math.max(frameSize, Math.floor(sampleRate * 0.14)); // ~7 frames/sec
   let centsErrTotal = 0;
   let voicedFrames = 0;
+  const pitchContour: RecordedPitchPoint[] = [];
 
   for (let pos = 0; pos + frameSize <= samples.length; pos += hopSize) {
     const slice = samples.subarray(pos, pos + frameSize);
@@ -67,6 +73,14 @@ export function analyzePcmSamples(
       const match = frequencyToPersianNote(res.frequency, a4Hz, koronMode, targetScale);
       centsErrTotal += Math.abs(match.centsOffset);
       voicedFrames += 1;
+      if (pitchContour.length < 240) {
+        pitchContour.push({
+          timeSec: Math.round((pos / Math.max(1, sampleRate)) * 100) / 100,
+          freqHz: Math.round(res.frequency * 10) / 10,
+          centsOffset: match.centsOffset,
+          noteLabelFa: match.labelFa,
+        });
+      }
     }
   }
 
@@ -83,6 +97,7 @@ export function analyzePcmSamples(
     avgAccuracy,
     avgCentsError,
     envelope,
+    pitchContour,
   };
 }
 

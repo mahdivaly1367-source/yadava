@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { formatNoteFa, isSamePitchClass, noteToStaffStep } from '../data/musicTheory';
-import type { Gusheh, MelodyNote } from '../types/music';
+import type { Gusheh, InstrumentId, MelodyNote } from '../types/music';
 import { ORNAMENT_LABELS_FA, toPersianDigits } from '../utils/persian';
 
 interface PersianStaffNotationProps {
   gusheh: Gusheh;
+  instrument?: InstrumentId;
   activeNoteIndex: number | null;
   loopStart: number;
   loopEnd: number;
@@ -14,12 +15,40 @@ interface PersianStaffNotationProps {
 }
 
 /**
+ * Computes pedagogical Persian articulation markings:
+ * - Mezrab (تار/سه‌تار/سنتور): ▼ (راست) / ▲ (چپ)
+ * - Kamancheh Bowing: ⊓ (آرشه راست) / ∨ (آرشه چپ)
+ * - Left-hand Fingering: ۰ (سیم آزاد) تا ۴
+ */
+function getNoteArticulation(
+  note: MelodyNote,
+  idx: number,
+  style: 'mezrab' | 'bowing'
+) {
+  const isRast = idx % 2 === 0 || note.durationBeats >= 1.5;
+  const mezrabGlyph = style === 'bowing' ? (isRast ? '⊓' : '∨') : isRast ? '▼' : '▲';
+  const mezrabLabel =
+    style === 'bowing'
+      ? isRast
+        ? 'آرشه راست'
+        : 'آرشه چپ'
+      : isRast
+      ? 'مضراب راست'
+      : 'مضراب چپ';
+  const step = noteToStaffStep(note);
+  const fingerNum = Math.abs(step) % 5; // 0 (open) .. 4
+  return { mezrabGlyph, mezrabLabel, fingerNum };
+}
+
+/**
  * Renders genuine Persian musical staff notation with custom vector glyphs for
  * Koron (کُرُن — slashed reversed half-flat) and Sori (سُری — chevron half-sharp),
- * A-B loop brackets, shahed/ist indicators, and ornament tags.
+ * A-B loop brackets, shahed/ist indicators, ornament tags, and toggleable
+ * Mezrab/Bowing & Fingering markings.
  */
 export const PersianStaffNotation: React.FC<PersianStaffNotationProps> = ({
   gusheh,
+  instrument = 'tar',
   activeNoteIndex,
   loopStart,
   loopEnd,
@@ -27,12 +56,16 @@ export const PersianStaffNotation: React.FC<PersianStaffNotationProps> = ({
   onSetLoopStart,
   onSetLoopEnd,
 }) => {
+  const [articulationMode, setArticulationMode] = useState<'mezrab' | 'bowing' | 'off'>(
+    instrument === 'ney' ? 'off' : 'mezrab'
+  );
+  const [showFingering, setShowFingering] = useState(true);
   const notes = gusheh.melody;
   const noteSpacing = 62;
   const leftPad = 64;
   const rightPad = 28;
   const width = Math.max(560, leftPad + notes.length * noteSpacing + rightPad);
-  const height = 176;
+  const height = 198;
 
   // Treble staff lines: E4 (step 2), G4 (4), B4 (6), D5 (8), F5 (10)
   // Step 10 (F5) at y = 44, each diatonic step = 7px downwards
@@ -90,10 +123,39 @@ export const PersianStaffNotation: React.FC<PersianStaffNotationProps> = ({
             ایست: {formatNoteFa(gusheh.ist)}
           </span>
         </div>
-        <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-          <span>حلقه A–B: نت {toPersianDigits(loopStart + 1)} تا {toPersianDigits(loopEnd + 1)}</span>
+        <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+          <button
+            type="button"
+            onClick={() =>
+              setArticulationMode((m) =>
+                m === 'mezrab' ? 'bowing' : m === 'bowing' ? 'off' : 'mezrab'
+              )
+            }
+            className={`rounded-lg border px-2 py-0.5 text-[11px] font-bold transition ${
+              articulationMode !== 'off'
+                ? 'border-teal-500/50 bg-teal-500/15 text-teal-700 dark:text-teal-300'
+                : 'border-slate-300 text-slate-500 dark:border-slate-700'
+            }`}
+          >
+            {articulationMode === 'bowing'
+              ? 'آرشه کمانچه (⊓/∨)'
+              : articulationMode === 'mezrab'
+              ? 'مضراب (▼/▲)'
+              : 'مضراب/آرشه: خاموش'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowFingering((v) => !v)}
+            className={`rounded-lg border px-2 py-0.5 text-[11px] font-bold transition ${
+              showFingering
+                ? 'border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                : 'border-slate-300 text-slate-500 dark:border-slate-700'
+            }`}
+          >
+            انگشت‌گذاری (۰–۴)
+          </button>
           <span>•</span>
-          <span>کلیک روی هر نت برای پخش</span>
+          <span>حلقه A–B: نت {toPersianDigits(loopStart + 1)} تا {toPersianDigits(loopEnd + 1)}</span>
         </div>
       </div>
 
@@ -101,7 +163,7 @@ export const PersianStaffNotation: React.FC<PersianStaffNotationProps> = ({
       <div dir="ltr" className="min-w-[540px]">
         <svg
           viewBox={`0 0 ${width} ${height}`}
-          className="h-[176px] w-full select-none"
+          className="h-[198px] w-full select-none"
           role="img"
           aria-label={`خط حامل گوشه ${gusheh.nameFa}`}
         >
@@ -238,11 +300,26 @@ export const PersianStaffNotation: React.FC<PersianStaffNotationProps> = ({
                   strokeWidth="2.1"
                 />
 
+                {/* Mezrab / Bowing marking above staff */}
+                {articulationMode !== 'off' && (
+                  <text
+                    x={x}
+                    y={note.ornament ? 29 : 22}
+                    textAnchor="middle"
+                    className="fill-teal-600 text-[11px] font-black dark:fill-teal-300"
+                  >
+                    <title>
+                      {getNoteArticulation(note, idx, articulationMode).mezrabLabel}
+                    </title>
+                    {getNoteArticulation(note, idx, articulationMode).mezrabGlyph}
+                  </text>
+                )}
+
                 {/* Ornament badge above staff */}
                 {note.ornament && (
                   <text
                     x={x}
-                    y={15}
+                    y={13}
                     textAnchor="middle"
                     className="fill-amber-600 text-[9px] font-bold dark:fill-amber-300"
                   >
@@ -264,10 +341,28 @@ export const PersianStaffNotation: React.FC<PersianStaffNotationProps> = ({
                   {formatNoteFa(note)}
                 </text>
 
-                {/* Quick A/B clickable tags */}
+                {/* Left-hand Fingering badge (۰-۴) */}
+                {showFingering && (
+                  <text
+                    x={x}
+                    y={162}
+                    textAnchor="middle"
+                    className="fill-amber-600 text-[10px] font-extrabold dark:fill-amber-300"
+                  >
+                    {toPersianDigits(
+                      getNoteArticulation(
+                        note,
+                        idx,
+                        articulationMode === 'bowing' ? 'bowing' : 'mezrab'
+                      ).fingerNum
+                    )}
+                  </text>
+                )}
+
+                {/* Quick A/B clickable index */}
                 <text
                   x={x}
-                  y={162}
+                  y={180}
                   textAnchor="middle"
                   className="fill-slate-400 text-[9px]"
                 >

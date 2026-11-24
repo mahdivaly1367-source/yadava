@@ -224,6 +224,7 @@ export class IranianPercussionEngine {
   private stepIdx = 0;
   private nextStepTime = 0;
   private groove: IranianGrooveSpec = IRANIAN_GROOVES[0];
+  private customSteps: StrokeType[] | null = null;
   private instrument: PercussionInstrument = 'tombak';
   private bpm = 112;
   private volume = 0.75;
@@ -235,12 +236,15 @@ export class IranianPercussionEngine {
 
   configure(opts: {
     grooveId: IranianGrooveId;
+    customSteps?: StrokeType[] | null;
     instrument: PercussionInstrument;
     bpm: number;
     volume: number;
     onStep?: (stepIndex: number, stroke: StrokeType) => void;
   }): void {
     this.groove = GROOVE_BY_ID[opts.grooveId] ?? IRANIAN_GROOVES[0];
+    this.customSteps =
+      opts.customSteps && opts.customSteps.length > 0 ? opts.customSteps : null;
     this.instrument = opts.instrument;
     this.bpm = Math.max(45, Math.min(200, opts.bpm));
     this.volume = Math.max(0, Math.min(1, opts.volume));
@@ -256,9 +260,10 @@ export class IranianPercussionEngine {
     const scheduleAheadSec = 0.12;
     const tick = () => {
       const audioCtx = getAudioContext();
+      const steps = this.customSteps ?? this.groove.steps;
       while (this.nextStepTime < audioCtx.currentTime + scheduleAheadSec) {
-        const idx = this.stepIdx % this.groove.steps.length;
-        const stroke = this.groove.steps[idx];
+        const idx = this.stepIdx % steps.length;
+        const stroke = steps[idx];
         triggerPersianStroke(audioCtx, this.nextStepTime, stroke, this.instrument, this.volume);
 
         const delayMs = Math.max(0, (this.nextStepTime - audioCtx.currentTime) * 1000);
@@ -267,7 +272,7 @@ export class IranianPercussionEngine {
 
         const stepSec = 60 / this.bpm / this.groove.stepSubdivision;
         this.nextStepTime += stepSec;
-        this.stepIdx = (idx + 1) % this.groove.steps.length;
+        this.stepIdx = (idx + 1) % steps.length;
       }
     };
 

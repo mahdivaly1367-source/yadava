@@ -26,6 +26,8 @@ export function createEmptyUserState(
       completedSessions: 0,
     },
     completedChallengeIds: [],
+    completedPathStepIds: [],
+    bestBreathSeconds: 0,
     averageAccuracy: 0,
     weakIntervals: ['koron', 'foroud'],
     badges: [],

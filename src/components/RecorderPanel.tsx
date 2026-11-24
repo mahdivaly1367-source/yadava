@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Activity,
   ArrowLeftRight,
   Circle,
   Download,
@@ -17,6 +18,7 @@ import {
   buildRecordingTimeline,
   compareRecordings,
 } from '../core/recordingComparison';
+import { formatNoteFa, noteToFrequency } from '../data/musicTheory';
 import { FREE_MAX_RECORDINGS } from '../services/billing';
 import { getRecordingBlob } from '../services/recordingDb';
 import type { ObjectUrlRegistry } from '../services/sessionStore';
@@ -24,6 +26,7 @@ import type {
   Gusheh,
   InstrumentId,
   KoronMode,
+  RecordedPitchPoint,
   RecordingAnalysis,
   SavedRecordingMeta,
 } from '../types/music';
@@ -77,6 +80,10 @@ export const RecorderPanel: React.FC<RecorderPanelProps> = ({
   const [titleInput, setTitleInput] = useState('');
   const [errorFa, setErrorFa] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [replayTimeSec, setReplayTimeSec] = useState<number>(0);
+  const [replayDurationSec, setReplayDurationSec] = useState<number>(0);
+  const [overlayContour, setOverlayContour] = useState<RecordedPitchPoint[] | null>(null);
+  const [overlayTitleFa, setOverlayTitleFa] = useState<string>('');
   const [compareOpen, setCompareOpen] = useState(false);
   const [compareAId, setCompareAId] = useState<string>('');
   const [compareBId, setCompareBId] = useState<string>('');
@@ -226,6 +233,7 @@ export const RecorderPanel: React.FC<RecorderPanelProps> = ({
       avgAccuracy: analysis.avgAccuracy,
       rmsDb: analysis.rmsDb,
       envelope: analysis.envelope,
+      pitchContour: analysis.pitchContour,
       isPublic: false,
       hasLocalAudio: true,
       createdAt: now,
@@ -253,9 +261,137 @@ export const RecorderPanel: React.FC<RecorderPanelProps> = ({
       audioElRef.current = new Audio();
     }
     audioElRef.current.src = url;
-    audioElRef.current.onended = () => setPlayingId(null);
+    audioElRef.current.ontimeupdate = () => {
+      if (audioElRef.current) {
+        setReplayTimeSec(audioElRef.current.currentTime);
+        if (audioElRef.current.duration && Number.isFinite(audioElRef.current.duration)) {
+          setReplayDurationSec(audioElRef.current.duration);
+        }
+      }
+    };
+    audioElRef.current.onended = () => {
+      setPlayingId(null);
+      setReplayTimeSec(0);
+    };
+    setReplayDurationSec(Math.max(0.5, rec.durationSeconds));
+    setOverlayTitleFa(rec.title);
+    setOverlayContour(rec.pitchContour ?? null);
     await audioElRef.current.play();
     setPlayingId(rec.id);
+  };
+
+  // Renders Feature 2: Overlay Pitch Contour Replay (Student Recorded YIN Curve vs Target Reference Scale)
+  const renderOverlayContourSvg = (
+    contour: RecordedPitchPoint[],
+    durationSec: number,
+    playheadSec: number,
+    titleFa: string
+  ) => {
+    if (!contour.length) return null;
+    const scaleFreqs = gusheh.scale.map((n) => ({
+      labelFa: formatNoteFa(n),
+      freq: noteToFrequency(n, a4Hz, koronMode),
+    }));
+    const allFreqs = [
+      ...scaleFreqs.map((s) => s.freq),
+      ...contour.map((p) => p.freqHz),
+    ];
+    const minFreq = Math.max(80, Math.min(...allFreqs) * 0.92);
+    const maxFreq = Math.max(minFreq + 40, Math.max(...allFreqs) * 1.08);
+    const logMin = Math.log2(minFreq);
+    const logMax = Math.log2(maxFreq);
+    const freqToY = (f: number) => {
+      const clamped = Math.max(minFreq, Math.min(maxFreq, f));
+      const norm = (Math.log2(clamped) - logMin) / Math.max(0.001, logMax - logMin);
+      return 128 - norm * 108;
+    };
+    const safeDur = Math.max(0.5, durationSec, contour[contour.length - 1]?.timeSec ?? 1);
+    const playheadX = 48 + Math.min(1, Math.max(0, playheadSec / safeDur)) * 492;
+
+    return (
+      <div className="mt-3 rounded-xl border border-teal-500/35 bg-slate-950 p-3 text-white">
+        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+          <span className="inline-flex items-center gap-1.5 font-bold text-teal-300">
+            <Activity className="h-3.5 w-3.5" />
+            پخش هم‌پوشانی خط کوک ضبط‌شده روی درجات مرجع — {titleFa}
+          </span>
+          <span className="text-[10px] text-slate-400">
+            سبز: کوک دقیق (±۱۵¢) • نارنجی: انحراف ملایم • قرمز: فالش
+          </span>
+        </div>
+        <div dir="ltr">
+        <svg viewBox="0 0 560 144" className="h-36 w-full">
+          {/* Reference Scale Degree Horizontal Lines */}
+          {scaleFreqs.map((s, idx) => {
+            const y = freqToY(s.freq);
+            return (
+              <g key={`${s.labelFa}-${idx}`}>
+                <line
+                  x1={48}
+                  y1={y}
+                  x2={544}
+                  y2={y}
+                  stroke="rgba(255,255,255,0.14)"
+                  strokeDasharray="4 4"
+                />
+                <text
+                  x={42}
+                  y={y + 3}
+                  textAnchor="end"
+                  fill="#94a3b8"
+                  fontSize="9"
+                >
+                  {s.labelFa}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Continuous Recorded Student Contour Path */}
+          <polyline
+            fill="none"
+            stroke="#2dd4bf"
+            strokeWidth="2"
+            strokeOpacity="0.85"
+            points={contour
+              .map((pt) => {
+                const x = 48 + Math.min(1, pt.timeSec / safeDur) * 492;
+                const y = freqToY(pt.freqHz);
+                return `${x.toFixed(1)},${y.toFixed(1)}`;
+              })
+              .join(' ')}
+          />
+
+          {/* Color-coded Accuracy Points */}
+          {contour.map((pt, i) => {
+            const x = 48 + Math.min(1, pt.timeSec / safeDur) * 492;
+            const y = freqToY(pt.freqHz);
+            const absC = Math.abs(pt.centsOffset);
+            const color =
+              absC <= 15 ? '#34d399' : absC <= 30 ? '#fbbf24' : '#f43f5e';
+            return (
+              <circle key={i} cx={x} cy={y} r="2.6" fill={color}>
+                <title>
+                  {pt.noteLabelFa} ({pt.centsOffset >= 0 ? '+' : ''}
+                  {pt.centsOffset}¢)
+                </title>
+              </circle>
+            );
+          })}
+
+          {/* Live Synced Playhead */}
+          <line
+            x1={playheadX}
+            y1={12}
+            x2={playheadX}
+            y2={134}
+            stroke="#f59e0b"
+            strokeWidth="2"
+          />
+        </svg>
+        </div>
+      </div>
+    );
   };
 
   const handleDownloadSaved = async (rec: SavedRecordingMeta) => {
@@ -515,8 +651,22 @@ export const RecorderPanel: React.FC<RecorderPanelProps> = ({
           </div>
 
           {pendingUrl && (
-            <audio controls src={pendingUrl} className="mt-2.5 h-9 w-full" />
+            <audio
+              controls
+              src={pendingUrl}
+              onTimeUpdate={(e) => setReplayTimeSec(e.currentTarget.currentTime)}
+              className="mt-2.5 h-9 w-full"
+            />
           )}
+
+          {analysis.pitchContour &&
+            analysis.pitchContour.length > 0 &&
+            renderOverlayContourSvg(
+              analysis.pitchContour,
+              analysis.durationSeconds,
+              replayTimeSec,
+              titleInput || gusheh.nameFa
+            )}
 
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             <input
@@ -540,6 +690,16 @@ export const RecorderPanel: React.FC<RecorderPanelProps> = ({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Live Overlay Replay for currently playing archive item */}
+      {overlayContour && overlayContour.length > 0 && playingId && (
+        renderOverlayContourSvg(
+          overlayContour,
+          replayDurationSec,
+          replayTimeSec,
+          overlayTitleFa
+        )
       )}
 
       {/* Saved Recordings Archive List */}

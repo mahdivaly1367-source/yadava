@@ -131,12 +131,20 @@ export interface PlacementResult {
   completedAt: number;
 }
 
+export interface RecordedPitchPoint {
+  timeSec: number;
+  freqHz: number;
+  centsOffset: number;
+  noteLabelFa: string;
+}
+
 export interface RecordingAnalysis {
   durationSeconds: number;
   rmsDb: number;
   avgAccuracy: number;
   avgCentsError: number;
   envelope: number[];
+  pitchContour?: RecordedPitchPoint[];
 }
 
 export interface SavedRecordingMeta {
@@ -151,6 +159,7 @@ export interface SavedRecordingMeta {
   avgAccuracy: number;
   rmsDb: number;
   envelope: number[];
+  pitchContour?: RecordedPitchPoint[];
   isPublic: boolean;
   hasLocalAudio: boolean;
   createdAt: number;
@@ -174,6 +183,8 @@ export interface UserLearningState {
   frozenDateKeys?: string[];
   earTrainingStats?: EarTrainingStats;
   completedChallengeIds?: string[];
+  completedPathStepIds?: string[];
+  bestBreathSeconds?: number;
   averageAccuracy: number;
   weakIntervals: string[];
   badges: string[];
@@ -213,6 +224,18 @@ export type VocalRangePresetId =
   | 'alto'
   | 'tenor'
   | 'baritone';
+
+export type FootPedalPresetId = 'airturn_page' | 'play_record' | 'loop_next';
+
+export interface CustomTemperamentProfile {
+  id: string;
+  nameFa: string;
+  schoolFa: string;
+  descriptionFa: string;
+  koronCents: number; // e.g. -50, -56, -62, -45
+  soriCents: number;  // e.g. +50, +46, +54
+  noteOffsetsCents: Record<NoteLetter, number>; // per-letter fine cent offsets (-30..+30)
+}
 
 export interface TeacherAssignment {
   version: 1;

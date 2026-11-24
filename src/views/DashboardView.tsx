@@ -17,7 +17,9 @@ import {
 import { getAudioContext, requestMicrophoneStream, stopMediaStream } from '../audio/audioContext';
 import { detectPitchYin } from '../audio/dsp';
 import { playPersianNote } from '../audio/karplusStrong';
+import { ClassicalPiecesPanel } from '../components/ClassicalPiecesPanel';
 import { EarTrainingLab } from '../components/EarTrainingLab';
+import { LearningPathsPanel } from '../components/LearningPathsPanel';
 import { PracticeHeatmapAndChallenges } from '../components/PracticeHeatmapAndChallenges';
 import {
   EAR_PLACEMENT_QUESTIONS,
@@ -56,9 +58,11 @@ interface DashboardViewProps {
   onCompletePlacement: (result: PlacementResult) => Promise<void>;
   onRecordEarAnswer: (isCorrect: boolean) => void;
   onActivateStreakFreeze: () => void;
+  onTogglePathStep: (stepId: string) => void;
   onOpenTeacherModal: () => void;
   onOpenExportModal: () => void;
   onOpenExplorer: () => void;
+  onRequestUpgrade: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -72,9 +76,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onCompletePlacement,
   onRecordEarAnswer,
   onActivateStreakFreeze,
+  onTogglePathStep,
   onOpenTeacherModal,
   onOpenExportModal,
   onOpenExplorer,
+  onRequestUpgrade,
 }) => {
   const [placementOpen, setPlacementOpen] = useState(false);
   const [placementStep, setPlacementStep] = useState<'ear' | 'pitch' | 'done'>('ear');
@@ -628,6 +634,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         userState={userState}
         onActivateFreezeToday={onActivateStreakFreeze}
         onStartChallengeGusheh={(gid) => onStartGushehPractice(gid, 'dsp')}
+      />
+
+      {/* Phase-2 Feature 10: Guided 30-Day Learning Paths */}
+      <LearningPathsPanel
+        userState={userState}
+        isPro={isPro}
+        onStartStepInStudio={(_sysId, gid) => onStartGushehPractice(gid, 'dsp')}
+        onToggleStepCompleted={onTogglePathStep}
+        onRequestUpgrade={onRequestUpgrade}
+      />
+
+      {/* Phase-2 Feature 11: Classical Rhythmic Pieces (Tasnif, Pishdaramad, Chaharmezrab, Reng) */}
+      <ClassicalPiecesPanel
+        instrument={instrument}
+        a4Hz={a4Hz}
+        koronMode={koronMode}
+        isPro={isPro}
+        onRequestUpgrade={onRequestUpgrade}
       />
 
       {/* Badges & Session History */}

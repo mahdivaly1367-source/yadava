@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2,
+  Footprints,
   GraduationCap,
   Maximize2,
   Mic,
@@ -8,6 +9,7 @@ import {
   Minimize2,
   PauseCircle,
   Play,
+  RefreshCw,
   Repeat,
   RotateCcw,
   Share2,
@@ -31,6 +33,8 @@ import {
   playPersianNote,
   type PhrasePlaybackHandle,
 } from '../audio/karplusStrong';
+import { AudioSlowdownerPanel } from '../components/AudioSlowdownerPanel';
+import { BreathLongTonePanel } from '../components/BreathLongTonePanel';
 import { CentGauge } from '../components/CentGauge';
 import { DronePanel } from '../components/DronePanel';
 import { FFTVisualizerPanel } from '../components/FFTVisualizerPanel';
@@ -41,8 +45,18 @@ import { PersianStaffNotation } from '../components/PersianStaffNotation';
 import { PitchContourCanvas } from '../components/PitchContourCanvas';
 import { PoetryProsodyPanel } from '../components/PoetryProsodyPanel';
 import { RecorderPanel } from '../components/RecorderPanel';
+import { TemperamentEditorPanel } from '../components/TemperamentEditorPanel';
 import { TombakDafPanel } from '../components/TombakDafPanel';
 import { WebMidiPanel } from '../components/WebMidiPanel';
+import {
+  FOOT_PEDAL_PRESETS,
+  PEDAL_ACTION_LABELS_FA,
+  resolveFootPedalAction,
+} from '../core/footPedal';
+import {
+  evaluateHandsFreeCycle,
+  type HandsFreePhase,
+} from '../core/handsFree';
 import {
   formatSemitoneShiftFa,
   transposeGusheh,
@@ -62,6 +76,7 @@ import {
 import { TRADITION_BY_ID } from '../data/radifTraditions';
 import type { ObjectUrlRegistry } from '../services/sessionStore';
 import type {
+  FootPedalPresetId,
   Gusheh,
   HarmonicPeak,
   InstrumentId,
@@ -99,6 +114,8 @@ interface PracticeStudioViewProps {
   onOpenExportModal: () => void;
   onOpenTeacherModal: () => void;
   isPro: boolean;
+  bestBreathSeconds?: number;
+  onNewBestBreath?: (seconds: number) => void;
   recordings: SavedRecordingMeta[];
   objectUrlRegistry: ObjectUrlRegistry;
   initialSubPanel?: 'dsp' | 'tuner' | 'recorder';
@@ -126,6 +143,9 @@ type StudioToolTab =
   | 'drone'
   | 'percussion'
   | 'poetry'
+  | 'slowdowner'
+  | 'temperament'
+  | 'breath'
   | 'tuner'
   | 'metronome'
   | 'midi'
@@ -150,6 +170,8 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
   onOpenExportModal,
   onOpenTeacherModal,
   isPro,
+  bestBreathSeconds = 0,
+  onNewBestBreath,
   recordings,
   objectUrlRegistry,
   initialSubPanel,
@@ -198,6 +220,41 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
   const [bpm, setBpm] = useState<number>(gusheh.practiceLoop.defaultBpm);
 
   const [callResponsePhase, setCallResponsePhase] = useState<'idle' | 'master' | 'student'>('idle');
+
+  // Phase-2 Feature 8: Hands-Free Auto-Cycle Studio
+  const [handsFreeActive, setHandsFreeActive] = useState(false);
+  const [handsFreePhase, setHandsFreePhase] = useState<HandsFreePhase>('idle');
+  const [handsFreeCountdown, setHandsFreeCountdown] = useState<number>(3);
+  const [handsFreeFeedbackFa, setHandsFreeFeedbackFa] = useState<string>('');
+  const handsFreeActiveRef = useRef<boolean>(false);
+  handsFreeActiveRef.current = handsFreeActive;
+  const handsFreeTimersRef = useRef<number[]>([]);
+  const handsFreeSampleStartIdxRef = useRef<number>(0);
+
+  // Phase-2 Feature 9: Bluetooth Foot Pedal & Pro Keyboard Shortcuts
+  const [footPedalEnabled, setFootPedalEnabled] = useState(true);
+  const [footPedalPreset, setFootPedalPreset] = useState<FootPedalPresetId>('airturn_page');
+  const [pedalPanelOpen, setPedalPanelOpen] = useState(false);
+  const [pedalHudToastFa, setPedalHudToastFa] = useState<string | null>(null);
+  const pedalHudTimerRef = useRef<number | null>(null);
+
+  const unlockedGushehs = useMemo(
+    () => ALL_GUSHEHS.filter((g) => isGushehUnlocked(g.id, isPro)),
+    [isPro]
+  );
+
+  const navigateUnlockedGusheh = useCallback(
+    (delta: 1 | -1) => {
+      if (unlockedGushehs.length === 0) return;
+      const idx = unlockedGushehs.findIndex((g) => g.id === gusheh.id);
+      const nextIdx =
+        idx < 0
+          ? 0
+          : (idx + delta + unlockedGushehs.length) % unlockedGushehs.length;
+      onSelectGusheh(unlockedGushehs[nextIdx].id);
+    },
+    [gusheh.id, onSelectGusheh, unlockedGushehs]
+  );
   const [fullscreen, setFullscreen] = useState(false);
   const [autoRecord, setAutoRecord] = useState(false);
   const [recorderTrigger, setRecorderTrigger] = useState<'idle' | 'start' | 'stop'>('idle');
@@ -498,15 +555,15 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
     stopPhrase,
   ]);
 
-  const toggleWaitMode = () => {
-    if (waitMode.enabled) {
+  const toggleWaitMode = useCallback(() => {
+    if (waitModeRef.current.enabled) {
       setWaitMode((prev) => ({ ...prev, enabled: false }));
       setActiveNoteIndex(null);
       return;
     }
     stopPhrase();
     const fresh: WaitModeState = {
-      ...createWaitModeState(loopStart, loopEnd, waitMode.toleranceCents, 220),
+      ...createWaitModeState(loopStart, loopEnd, waitModeRef.current.toleranceCents, 220),
       enabled: true,
     };
     setWaitMode(fresh);
@@ -522,7 +579,157 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
     if (!micActive) {
       void startMicDsp();
     }
-  };
+  }, [
+    a4Hz,
+    effectiveGusheh.melody,
+    instrument,
+    koronMode,
+    loopEnd,
+    loopStart,
+    micActive,
+    startMicDsp,
+    stopPhrase,
+  ]);
+
+  const clearHandsFreeTimers = useCallback(() => {
+    for (const id of handsFreeTimersRef.current) window.clearTimeout(id);
+    handsFreeTimersRef.current = [];
+  }, []);
+
+  const stopHandsFree = useCallback(() => {
+    clearHandsFreeTimers();
+    handsFreeActiveRef.current = false;
+    setHandsFreeActive(false);
+    setHandsFreePhase('idle');
+    setHandsFreeFeedbackFa('');
+    stopPhrase();
+  }, [clearHandsFreeTimers, stopPhrase]);
+
+  const runHandsFreeCycle = useCallback(() => {
+    if (!handsFreeActiveRef.current) return;
+    clearHandsFreeTimers();
+    stopPhrase();
+    setHandsFreePhase('master_playing');
+    setHandsFreeFeedbackFa('استاد جمله را می‌نوازد؛ با دقت گوش دهید...');
+    setIsPlaying(true);
+
+    playbackRef.current = playGushehPhrase(effectiveGusheh.melody, {
+      instrument,
+      bpm,
+      speedMultiplier,
+      a4Hz,
+      koronMode,
+      startIndex: loopStart,
+      endIndex: loopEnd,
+      loop: false,
+      onNoteStart: (idx) => setActiveNoteIndex(idx),
+      onComplete: () => {
+        if (!handsFreeActiveRef.current) return;
+        setIsPlaying(false);
+        setActiveNoteIndex(null);
+        setHandsFreePhase('countdown');
+        setHandsFreeCountdown(3);
+        setHandsFreeFeedbackFa('آماده اجرا شوید: ۳ ...');
+
+        const t2 = window.setTimeout(() => {
+          if (!handsFreeActiveRef.current) return;
+          setHandsFreeCountdown(2);
+          setHandsFreeFeedbackFa('آماده اجرا شوید: ۲ ...');
+        }, 700);
+        const t1 = window.setTimeout(() => {
+          if (!handsFreeActiveRef.current) return;
+          setHandsFreeCountdown(1);
+          setHandsFreeFeedbackFa('آماده اجرا شوید: ۱ ...');
+        }, 1400);
+        const tListen = window.setTimeout(() => {
+          if (!handsFreeActiveRef.current) return;
+          setHandsFreePhase('student_listening');
+          setHandsFreeFeedbackFa('نوبت شماست! بدون لمس صفحه بنوازید یا بخوانید...');
+          handsFreeSampleStartIdxRef.current = accuracySamplesRef.current.length;
+          if (!micActive) {
+            void startMicDsp();
+          }
+
+          const sliceBeats = effectiveGusheh.melody
+            .slice(loopStart, loopEnd + 1)
+            .reduce((acc, m) => acc + m.durationBeats, 0);
+          const listenMs = Math.max(
+            3800,
+            Math.round(sliceBeats * (60 / Math.max(40, bpm * speedMultiplier)) * 1000 + 1200)
+          );
+
+          const tReview = window.setTimeout(() => {
+            if (!handsFreeActiveRef.current) return;
+            const cycleSamples = accuracySamplesRef.current.slice(
+              handsFreeSampleStartIdxRef.current
+            );
+            const evaluation = evaluateHandsFreeCycle(cycleSamples, 82);
+            setHandsFreePhase('review_score');
+            setHandsFreeFeedbackFa(evaluation.feedbackFa);
+
+            const tNext = window.setTimeout(() => {
+              if (!handsFreeActiveRef.current) return;
+              if (evaluation.action === 'advance_next_gusheh') {
+                navigateUnlockedGusheh(1);
+              } else {
+                runHandsFreeCycle();
+              }
+            }, 2200);
+            handsFreeTimersRef.current.push(tNext);
+          }, listenMs);
+          handsFreeTimersRef.current.push(tReview);
+        }, 2100);
+
+        handsFreeTimersRef.current.push(t2, t1, tListen);
+      },
+    });
+  }, [
+    a4Hz,
+    bpm,
+    clearHandsFreeTimers,
+    effectiveGusheh.melody,
+    instrument,
+    koronMode,
+    loopEnd,
+    loopStart,
+    micActive,
+    navigateUnlockedGusheh,
+    speedMultiplier,
+    startMicDsp,
+    stopPhrase,
+  ]);
+
+  const toggleHandsFree = useCallback(() => {
+    if (handsFreeActiveRef.current) {
+      stopHandsFree();
+    } else {
+      handsFreeActiveRef.current = true;
+      setHandsFreeActive(true);
+      runHandsFreeCycle();
+    }
+  }, [runHandsFreeCycle, stopHandsFree]);
+
+  // If Hands-Free advances to a new gusheh, automatically begin the next cycle!
+  useEffect(() => {
+    if (handsFreeActiveRef.current) {
+      const id = window.setTimeout(() => {
+        if (handsFreeActiveRef.current) runHandsFreeCycle();
+      }, 450);
+      return () => window.clearTimeout(id);
+    }
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gusheh.id]);
+
+  const showPedalToast = useCallback((labelFa: string) => {
+    setPedalHudToastFa(labelFa);
+    if (pedalHudTimerRef.current !== null) {
+      window.clearTimeout(pedalHudTimerRef.current);
+    }
+    pedalHudTimerRef.current = window.setTimeout(() => {
+      setPedalHudToastFa(null);
+    }, 2200);
+  }, []);
 
   const startRepeatWithMaster = useCallback(() => {
     stopPhrase();
@@ -590,24 +797,66 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
       if (e.key === 'r' || e.key === 'R') {
         e.preventDefault();
         startRepeatWithMaster();
-      } else if (e.key === 'f' || e.key === 'F') {
+        return;
+      }
+      if (e.key === 'f' || e.key === 'F') {
         e.preventDefault();
         setFullscreen((v) => !v);
-      } else if (e.key === 'Escape' && fullscreen) {
+        return;
+      }
+      if (e.key === 'Escape' && fullscreen) {
         setFullscreen(false);
+        return;
+      }
+
+      // Phase-2 Feature 9: Bluetooth Foot Pedal & Pro Keyboard Mapper
+      if (footPedalEnabled) {
+        const action = resolveFootPedalAction(e.key, footPedalPreset);
+        if (action) {
+          e.preventDefault();
+          showPedalToast(`پدال پا: ${PEDAL_ACTION_LABELS_FA[action]}`);
+          if (action === 'toggle_play') {
+            if (isPlaying) stopPhrase();
+            else startPhrase();
+          } else if (action === 'repeat_master') {
+            startRepeatWithMaster();
+          } else if (action === 'toggle_record') {
+            setActiveToolTab('recorder');
+            setRecorderTrigger((prev) => (prev === 'start' ? 'stop' : 'start'));
+          } else if (action === 'next_gusheh') {
+            navigateUnlockedGusheh(1);
+          } else if (action === 'prev_gusheh') {
+            navigateUnlockedGusheh(-1);
+          } else if (action === 'toggle_wait_mode') {
+            toggleWaitMode();
+          }
+        }
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [fullscreen, startRepeatWithMaster]);
+  }, [
+    footPedalEnabled,
+    footPedalPreset,
+    fullscreen,
+    isPlaying,
+    navigateUnlockedGusheh,
+    showPedalToast,
+    startPhrase,
+    startRepeatWithMaster,
+    stopPhrase,
+    toggleWaitMode,
+  ]);
 
   useEffect(() => {
     return () => {
       stopMicDsp();
+      clearHandsFreeTimers();
+      if (pedalHudTimerRef.current !== null) window.clearTimeout(pedalHudTimerRef.current);
       playbackRef.current?.stop();
       if (callTimerRef.current !== null) window.clearTimeout(callTimerRef.current);
     };
-  }, [stopMicDsp]);
+  }, [clearHandsFreeTimers, stopMicDsp]);
 
   const handleCompleteSession = async () => {
     const durationSeconds = Math.max(
@@ -657,10 +906,6 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
   };
 
   const dastgah = SYSTEM_BY_ID[gusheh.dastgahId];
-  const unlockedGushehs = useMemo(
-    () => ALL_GUSHEHS.filter((g) => isGushehUnlocked(g.id, isPro)),
-    [isPro]
-  );
 
   const activeMelodyNote =
     activeNoteIndex !== null
@@ -877,6 +1122,34 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
 
             <button
               type="button"
+              onClick={toggleHandsFree}
+              title="چرخه خودکار بدون دست: استاد → شمارش ۳-۲-۱ → اجرا → امتیاز و گوشه بعد"
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-extrabold transition ${
+                handsFreeActive
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
+                  : 'border border-indigo-500/40 bg-indigo-500/12 text-indigo-700 hover:bg-indigo-500/20 dark:text-indigo-300'
+              }`}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${handsFreeActive ? 'animate-spin' : ''}`} />
+              {handsFreeActive ? 'توقف حالت بدون دست' : 'تمرین بدون دست'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPedalPanelOpen((v) => !v)}
+              title="تنظیم پدال بلوتوثی پا (AirTurn / PageFlip) و کلیدهای میانبر"
+              className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-2 text-xs font-bold transition ${
+                pedalPanelOpen || footPedalEnabled
+                  ? 'border-sky-500/45 bg-sky-500/12 text-sky-700 dark:text-sky-300'
+                  : 'border-slate-300 text-slate-600 dark:border-slate-700 dark:text-slate-300'
+              }`}
+            >
+              <Footprints className="h-3.5 w-3.5" />
+              <span className="hidden xl:inline">پدال پا</span>
+            </button>
+
+            <button
+              type="button"
               onClick={toggleMic}
               className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-extrabold text-white shadow-sm transition ${
                 micActive
@@ -1073,6 +1346,86 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
             {sessionToast}
           </div>
         )}
+
+        {/* Phase-2 Feature 8: Hands-Free Auto-Cycle Live HUD Banner */}
+        {handsFreeActive && (
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-indigo-500/45 bg-indigo-500/12 px-3.5 py-2.5 text-xs">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-sm font-black text-white">
+                {handsFreePhase === 'countdown'
+                  ? toPersianDigits(handsFreeCountdown)
+                  : handsFreePhase === 'master_playing'
+                  ? '♪'
+                  : handsFreePhase === 'student_listening'
+                  ? '●'
+                  : '✓'}
+              </span>
+              <div>
+                <div className="font-extrabold text-indigo-800 dark:text-indigo-200">
+                  چرخه خودکار بدون دست فعال است (حد نصاب انتقال به گوشه بعد: ۸۲٪)
+                </div>
+                <div className="text-[11px] text-slate-600 dark:text-slate-300">
+                  {handsFreeFeedbackFa}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={stopHandsFree}
+              className="rounded-xl bg-rose-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-rose-700"
+            >
+              پایان چرخه
+            </button>
+          </div>
+        )}
+
+        {/* Phase-2 Feature 9: Foot Pedal & Pro Shortcuts Configuration Panel */}
+        {pedalPanelOpen && (
+          <div className="mt-2 rounded-2xl border border-sky-500/35 bg-sky-500/8 p-3 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="font-extrabold text-sky-800 dark:text-sky-200">
+                پشتیبانی پدال بلوتوثی پا (AirTurn / PageFlip / Donner) و کلیدهای حرفه‌ای
+              </div>
+              <label className="inline-flex cursor-pointer items-center gap-1.5 font-bold text-slate-700 dark:text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={footPedalEnabled}
+                  onChange={(e) => setFootPedalEnabled(e.target.checked)}
+                  className="accent-sky-500"
+                />
+                فعال‌سازی شنود پدال
+              </label>
+            </div>
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {FOOT_PEDAL_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => setFootPedalPreset(preset.id)}
+                  className={`rounded-xl border p-2.5 text-right transition ${
+                    footPedalPreset === preset.id
+                      ? 'border-sky-500 bg-sky-500/15 font-extrabold'
+                      : 'border-slate-200 bg-white/80 dark:border-slate-700 dark:bg-slate-900/60'
+                  }`}
+                >
+                  <div className="text-[11px] text-slate-900 dark:text-white">
+                    {preset.nameFa}
+                  </div>
+                  <div className="mt-0.5 text-[10px] font-normal text-slate-500 dark:text-slate-400">
+                    {preset.descriptionFa}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {pedalHudToastFa && (
+          <div className="mt-2 inline-flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-500/15 px-3 py-1.5 text-xs font-extrabold text-sky-700 dark:text-sky-200">
+            <Footprints className="h-3.5 w-3.5" />
+            {pedalHudToastFa}
+          </div>
+        )}
       </div>
 
       {/* Main Console Grid: Persian Staff Notation + Live ±50¢ Gauge */}
@@ -1080,6 +1433,7 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
         <div className="lg:col-span-8">
           <PersianStaffNotation
             gusheh={effectiveGusheh}
+            instrument={instrument}
             activeNoteIndex={activeNoteIndex}
             loopStart={loopStart}
             loopEnd={loopEnd}
@@ -1122,7 +1476,7 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
         activeNoteIndex={activeNoteIndex}
       />
 
-      {/* Modular Studio Workbench Tabs (All Classic + New Pro Companion Tools) */}
+      {/* Modular Studio Workbench Tabs (All Classic + Phase 1 & Phase 2 Pro Tools) */}
       <div className="flex flex-wrap gap-1.5 rounded-2xl border border-slate-200/80 bg-white/85 p-1.5 dark:border-slate-800 dark:bg-slate-900/85">
         {(
           [
@@ -1130,6 +1484,9 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
             { id: 'drone', labelFa: 'واخوان (Drone)' },
             { id: 'percussion', labelFa: 'تنبک و دف' },
             { id: 'poetry', labelFa: 'شعر، عروض و روایت‌ها' },
+            { id: 'slowdowner', labelFa: 'آهسته‌ساز و نت‌نگار' },
+            { id: 'temperament', labelFa: 'کوک و ربع‌پرده' },
+            { id: 'breath', labelFa: 'نفس و تحریر' },
             { id: 'tuner', labelFa: 'تیونر ساز' },
             { id: 'metronome', labelFa: 'مترونوم' },
             { id: 'midi', labelFa: 'کیبورد MIDI / OTG' },
@@ -1166,7 +1523,9 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
         <DronePanel gusheh={effectiveGusheh} a4Hz={a4Hz} koronMode={koronMode} />
       )}
 
-      {activeToolTab === 'percussion' && <TombakDafPanel initialBpm={bpm} />}
+      {activeToolTab === 'percussion' && (
+        <TombakDafPanel ownerUid={ownerUid} initialBpm={bpm} />
+      )}
 
       {activeToolTab === 'poetry' && (
         <PoetryProsodyPanel
@@ -1174,6 +1533,34 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
           activeNoteIndex={activeNoteIndex}
           traditionId={traditionId}
           onChangeTradition={onChangeTradition}
+        />
+      )}
+
+      {activeToolTab === 'slowdowner' && (
+        <AudioSlowdownerPanel
+          gusheh={effectiveGusheh}
+          instrument={instrument}
+          a4Hz={a4Hz}
+          koronMode={koronMode}
+        />
+      )}
+
+      {activeToolTab === 'temperament' && (
+        <TemperamentEditorPanel
+          ownerUid={ownerUid}
+          gusheh={effectiveGusheh}
+          instrument={instrument}
+          a4Hz={a4Hz}
+        />
+      )}
+
+      {activeToolTab === 'breath' && (
+        <BreathLongTonePanel
+          micActive={micActive}
+          liveRms={pitchFrame.rms}
+          liveTahrirRateHz={pitchFrame.tahrirRateHz}
+          bestBreathSeconds={bestBreathSeconds}
+          onNewBestBreath={onNewBestBreath}
         />
       )}
 

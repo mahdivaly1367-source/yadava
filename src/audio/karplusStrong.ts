@@ -297,6 +297,49 @@ export function playPersianNote(
   };
 }
 
+/**
+ * Plays a raw frequency in Hz directly through the Karplus-Strong synthesizer
+ * (used by the Custom Microtonal Temperament Editor for A/B cent comparisons).
+ */
+export function playFrequencyTone(
+  frequencyHz: number,
+  options: {
+    instrument: InstrumentId;
+    durationSec?: number;
+    velocity?: number;
+  }
+): { stop: () => void } {
+  const ctx = getAudioContext();
+  const dur = options.durationSec ?? 0.9;
+  const samples = synthesizeKarplusStrongSamples({
+    frequency: frequencyHz,
+    sampleRate: ctx.sampleRate,
+    durationSec: dur,
+    instrument: options.instrument,
+    velocity: options.velocity ?? 0.82,
+  });
+  const buf = ctx.createBuffer(1, samples.length, ctx.sampleRate);
+  buf.getChannelData(0).set(samples);
+
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const gain = ctx.createGain();
+  gain.gain.value = 0.72;
+  src.connect(gain);
+  gain.connect(ctx.destination);
+  src.start(ctx.currentTime + 0.01);
+
+  return {
+    stop: () => {
+      try {
+        src.stop();
+      } catch {
+        // already stopped
+      }
+    },
+  };
+}
+
 export interface PhrasePlaybackHandle {
   stop: () => void;
 }

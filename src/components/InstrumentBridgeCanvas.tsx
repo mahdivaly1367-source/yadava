@@ -34,14 +34,21 @@ export const InstrumentBridgeCanvas: React.FC<InstrumentBridgeCanvasProps> = ({
   a4Hz,
   koronMode,
 }) => {
-  const [viewInstrument, setViewInstrument] = useState<'tar_setar' | 'santur'>(
-    instrument === 'santur' ? 'santur' : 'tar_setar'
+  const [viewInstrument, setViewInstrument] = useState<
+    'tar_setar' | 'santur' | 'kamancheh' | 'ney'
+  >(
+    instrument === 'santur'
+      ? 'santur'
+      : instrument === 'ney'
+      ? 'ney'
+      : 'tar_setar'
   );
   const [lastClickedLabel, setLastClickedLabel] = useState<string>('');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     if (instrument === 'santur') setViewInstrument('santur');
+    else if (instrument === 'ney') setViewInstrument('ney');
     else if (instrument === 'tar' || instrument === 'setar') setViewInstrument('tar_setar');
   }, [instrument]);
 
@@ -53,6 +60,40 @@ export const InstrumentBridgeCanvas: React.FC<InstrumentBridgeCanvasProps> = ({
   const santurBridges = useMemo(
     () => getSantur27Bridges(gusheh.dastgahId),
     [gusheh.dastgahId]
+  );
+
+  // Kamancheh 4-string standard Persian tuning (Mi4, La3, Re3, Sol2 or Re4/La3/Re3/Sol2)
+  const kamanchehStrings: Array<{ labelFa: string; openNote: PersianNoteSpec }> = useMemo(
+    () => [
+      { labelFa: 'سیم ۱ (می زیر)', openNote: { letter: 'E', accidental: 'natural', octave: 4 } },
+      { labelFa: 'سیم ۲ (لا)', openNote: { letter: 'A', accidental: 'natural', octave: 3 } },
+      { labelFa: 'سیم ۳ (ر)', openNote: { letter: 'D', accidental: 'natural', octave: 3 } },
+      { labelFa: 'سیم ۴ (سُل بم)', openNote: { letter: 'G', accidental: 'natural', octave: 2 } },
+    ],
+    []
+  );
+
+  // Authentic 7-Band Iranian Ney 6+1 fingering table (5 front holes + 1 thumb hole on back)
+  // 1 = closed, 0.5 = half-hole (quarter-tone Koron/Sori), 0 = open
+  const neyFingerings: Array<{
+    note: PersianNoteSpec;
+    registerFa: 'بم' | 'اوج' | 'غیث';
+    frontHoles: number[]; // top to bottom (5 front holes)
+    thumbHole: number;    // back thumb hole
+  }> = useMemo(
+    () => [
+      { note: { letter: 'C', accidental: 'natural', octave: 4 }, registerFa: 'بم', frontHoles: [1, 1, 1, 1, 1], thumbHole: 1 },
+      { note: { letter: 'D', accidental: 'natural', octave: 4 }, registerFa: 'بم', frontHoles: [1, 1, 1, 1, 0], thumbHole: 1 },
+      { note: { letter: 'E', accidental: 'koron', octave: 4 }, registerFa: 'بم', frontHoles: [1, 1, 1, 0.5, 0], thumbHole: 1 },
+      { note: { letter: 'E', accidental: 'flat', octave: 4 }, registerFa: 'بم', frontHoles: [1, 1, 1, 0, 0], thumbHole: 1 },
+      { note: { letter: 'F', accidental: 'natural', octave: 4 }, registerFa: 'بم', frontHoles: [1, 1, 0, 0, 0], thumbHole: 1 },
+      { note: { letter: 'G', accidental: 'natural', octave: 4 }, registerFa: 'اوج', frontHoles: [1, 0, 0, 0, 0], thumbHole: 1 },
+      { note: { letter: 'A', accidental: 'koron', octave: 4 }, registerFa: 'اوج', frontHoles: [0.5, 0, 0, 0, 0], thumbHole: 1 },
+      { note: { letter: 'A', accidental: 'flat', octave: 4 }, registerFa: 'اوج', frontHoles: [0, 0, 0, 0, 0], thumbHole: 1 },
+      { note: { letter: 'B', accidental: 'natural', octave: 4 }, registerFa: 'اوج', frontHoles: [0, 0, 0, 0, 0], thumbHole: 0 },
+      { note: { letter: 'C', accidental: 'natural', octave: 5 }, registerFa: 'غیث', frontHoles: [1, 1, 1, 1, 1], thumbHole: 0.5 },
+    ],
+    []
   );
 
   // Draw logarithmic 24-fret Tar/Setar neck on HTML5 Canvas
@@ -258,32 +299,35 @@ export const InstrumentBridgeCanvas: React.FC<InstrumentBridgeCanvasProps> = ({
           <p className="text-xs text-slate-500 dark:text-slate-400">
             {viewInstrument === 'tar_setar'
               ? 'دسته لگاریتمی ۲۴ پرده‌ای تار و سه‌تار — روی هر پرده کلیک کنید تا بنوازد'
-              : '۲۷ خرک سنتور (۹ زرد، ۹ سفید، ۹ پشت‌خرک) متناسب با کوک دستگاه فعال'}
+              : viewInstrument === 'santur'
+              ? '۲۷ خرک سنتور (۹ زرد، ۹ سفید، ۹ پشت‌خرک) متناسب با کوک دستگاه فعال'
+              : viewInstrument === 'kamancheh'
+              ? 'دسته بدون پرده ۴ سیم کمانچه با نقاط انگشت‌گذاری میلی‌متری کُرُن و سُری'
+              : 'نقشه انگشت‌گذاری نی هفت‌بند (۵ سوراخ جلو + ۱ سوراخ شست پشت و نیم‌سوراخ کُرُن)'}
           </p>
         </div>
-        <div className="inline-flex rounded-xl bg-slate-100 p-1 text-xs dark:bg-slate-800">
-          <button
-            type="button"
-            onClick={() => setViewInstrument('tar_setar')}
-            className={`rounded-lg px-3 py-1 font-semibold transition ${
-              viewInstrument === 'tar_setar'
-                ? 'bg-teal-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 dark:text-slate-300'
-            }`}
-          >
-            تار / سه‌تار (۲۴ پرده)
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewInstrument('santur')}
-            className={`rounded-lg px-3 py-1 font-semibold transition ${
-              viewInstrument === 'santur'
-                ? 'bg-amber-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 dark:text-slate-300'
-            }`}
-          >
-            سنتور (۲۷ خرک)
-          </button>
+        <div className="inline-flex flex-wrap rounded-xl bg-slate-100 p-1 text-xs dark:bg-slate-800">
+          {(
+            [
+              { id: 'tar_setar', label: 'تار / سه‌تار', activeCls: 'bg-teal-600 text-white' },
+              { id: 'santur', label: 'سنتور (۲۷ خرک)', activeCls: 'bg-amber-600 text-white' },
+              { id: 'kamancheh', label: 'کمانچه (۴ سیم)', activeCls: 'bg-indigo-600 text-white' },
+              { id: 'ney', label: 'نی هفت‌بند', activeCls: 'bg-emerald-600 text-white' },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setViewInstrument(tab.id)}
+              className={`rounded-lg px-2.5 py-1 font-semibold transition ${
+                viewInstrument === tab.id
+                  ? `${tab.activeCls} shadow-sm`
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-300'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -294,6 +338,166 @@ export const InstrumentBridgeCanvas: React.FC<InstrumentBridgeCanvasProps> = ({
             onClick={handleCanvasClick}
             className="h-[196px] w-full min-w-[640px] cursor-pointer rounded-xl bg-slate-950/95"
           />
+        </div>
+      ) : viewInstrument === 'kamancheh' ? (
+        <div className="space-y-2 rounded-xl bg-gradient-to-b from-slate-900 to-stone-950 p-3.5 text-white">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-300">
+            <span>دسته بدون پرده کمانچه — پوزیشن اول (روی هر نقطه انگشت کلیک کنید)</span>
+            <span className="text-teal-300">نقطه فیروزه‌ای: ربع‌پرده کُرُن/سُری • نارنجی: شاهد</span>
+          </div>
+          <div className="space-y-2" dir="ltr">
+            {kamanchehStrings.map((ks) => {
+              const openCents = noteToCentsFromC0(ks.openNote, koronMode);
+              const positionsCents = [0, 100, 150, 200, 300, 350, 400, 500, 550, 600, 700];
+              return (
+                <div
+                  key={ks.labelFa}
+                  className="relative flex items-center gap-2 rounded-lg bg-amber-950/45 px-2.5 py-2"
+                >
+                  <span
+                    dir="rtl"
+                    className="w-24 shrink-0 text-right text-[11px] font-bold text-amber-200"
+                  >
+                    {ks.labelFa}
+                  </span>
+                  <div className="relative flex flex-1 items-center justify-between">
+                    <div className="pointer-events-none absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-gradient-to-l from-amber-300/70 to-slate-200/80" />
+                    {positionsCents.map((offsetC) => {
+                      const totalC = openCents + offsetC;
+                      const freq =
+                        a4Hz * Math.pow(2, (totalC - (4 * 1200 + 900)) / 1200);
+                      const matched = frequencyToPersianNote(
+                        freq,
+                        a4Hz,
+                        koronMode,
+                        gusheh.scale
+                      );
+                      const isActive =
+                        activeNote !== null &&
+                        Math.abs(totalC - noteToCentsFromC0(activeNote, koronMode)) < 25;
+                      const inScale = gusheh.scale.some((s) =>
+                        isSamePitchClass(s, matched.note)
+                      );
+                      const isShahed = isSamePitchClass(gusheh.shahed, matched.note);
+                      const isMicro = offsetC % 100 !== 0;
+
+                      return (
+                        <button
+                          key={offsetC}
+                          type="button"
+                          onClick={() => {
+                            playPersianNote(matched.note, {
+                              instrument: 'ney',
+                              durationSec: 1.15,
+                              a4Hz,
+                              koronMode,
+                            });
+                            setLastClickedLabel(
+                              `کمانچه (${ks.labelFa}) ← ${formatNoteFa(matched.note, true)} (${Math.round(
+                                freq
+                              )} Hz)`
+                            );
+                          }}
+                          title={formatNoteFa(matched.note, true)}
+                          className={`relative z-10 flex h-7 w-7 items-center justify-center rounded-full border text-[9px] font-bold transition hover:scale-110 ${
+                            isActive
+                              ? 'border-white bg-teal-400 text-slate-950 shadow-lg shadow-teal-400/50'
+                              : isShahed
+                              ? 'border-amber-200 bg-amber-500 text-slate-950'
+                              : isMicro && inScale
+                              ? 'border-teal-300 bg-teal-600/85 text-white'
+                              : inScale
+                              ? 'border-slate-300 bg-slate-700 text-white'
+                              : 'border-white/10 bg-slate-900/75 text-slate-500 opacity-55 hover:opacity-100'
+                          }`}
+                        >
+                          {formatNoteFa(matched.note).slice(0, 3)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : viewInstrument === 'ney' ? (
+        <div className="rounded-xl bg-gradient-to-b from-emerald-950/90 to-slate-950 p-3.5 text-white">
+          <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-emerald-200/90">
+            <span>نی هفت‌بند ایرانی (۵ سوراخ جلو + ۱ سوراخ شست) — ● بسته • ◐ نیم‌بسته (کُرُن) • ○ باز</span>
+            <span>روی هر نت کلیک کنید تا صدای نی سنتز شود</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {neyFingerings.map((item, idx) => {
+              const isActive =
+                activeNote !== null && isSamePitchClass(item.note, activeNote);
+              const inScale = gusheh.scale.some((s) =>
+                isSamePitchClass(s, item.note)
+              );
+              const isShahed = isSamePitchClass(gusheh.shahed, item.note);
+
+              return (
+                <button
+                  key={`${item.note.letter}-${item.note.accidental}-${idx}`}
+                  type="button"
+                  onClick={() => {
+                    playPersianNote(item.note, {
+                      instrument: 'ney',
+                      durationSec: 1.25,
+                      a4Hz,
+                      koronMode,
+                    });
+                    setLastClickedLabel(
+                      `نی هفت‌بند (${item.registerFa}) ← ${formatNoteFa(item.note, true)}`
+                    );
+                  }}
+                  className={`flex flex-col items-center rounded-xl border p-2.5 transition hover:brightness-110 active:scale-95 ${
+                    isActive
+                      ? 'border-teal-300 bg-teal-500/30 ring-2 ring-teal-300'
+                      : isShahed
+                      ? 'border-amber-400 bg-amber-500/20'
+                      : inScale
+                      ? 'border-emerald-400/40 bg-white/10'
+                      : 'border-white/10 bg-black/25 opacity-60 hover:opacity-100'
+                  }`}
+                >
+                  <div className="text-xs font-extrabold text-white">
+                    {formatNoteFa(item.note)}
+                  </div>
+                  <div className="text-[10px] text-emerald-300">منطقه {item.registerFa}</div>
+                  {/* Bamboo Ney Tube + 5 Front Holes + Thumb Hole */}
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="flex flex-col items-center gap-1 rounded-full bg-amber-200/20 px-2 py-1.5 border border-amber-300/40">
+                      {item.frontHoles.map((h, hIdx) => (
+                        <span
+                          key={hIdx}
+                          className={`h-2.5 w-2.5 rounded-full border border-amber-200 ${
+                            h === 1
+                              ? 'bg-amber-300'
+                              : h === 0.5
+                              ? 'bg-gradient-to-r from-amber-300 via-amber-300 to-transparent'
+                              : 'bg-transparent'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex flex-col items-center text-[9px] text-slate-300">
+                      <span>شست</span>
+                      <span
+                        className={`mt-0.5 h-3 w-3 rounded-full border border-teal-300 ${
+                          item.thumbHole === 1
+                            ? 'bg-teal-400'
+                            : item.thumbHole === 0.5
+                            ? 'bg-gradient-to-r from-teal-400 to-transparent'
+                            : 'bg-transparent'
+                        }`}
+                      />
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       ) : (
         <div className="space-y-2.5 rounded-xl bg-gradient-to-b from-amber-950/90 to-stone-950 p-3 text-white">
