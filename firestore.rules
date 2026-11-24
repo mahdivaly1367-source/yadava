@@ -1,0 +1,300 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -------------------------------------------------------------------------
+    // Core Auth & Validation Helpers
+    // -------------------------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isValidInstrument(val) {
+      return val in ['tar', 'setar', 'santur', 'ney'];
+    }
+
+    function isValidLevel(val) {
+      return val in ['beginner', 'intermediate', 'advanced'];
+    }
+
+    function isValidMeter(val) {
+      return val in ['2/4', '3/4', '4/4', '5/8', '6/8', '7/8'];
+    }
+
+    function isEpochMs(val) {
+      return val is number && val > 1577836800000 && val < 4102444800000;
+    }
+
+    function validUserProfile(data, uid) {
+      return data.keys().hasOnly([
+          'uid', 'displayName', 'level', 'totalPracticeMinutes', 'streakDays',
+          'averageAccuracy', 'weakIntervals', 'badges', 'placementCompleted',
+          'createdAt', 'updatedAt'
+        ])
+        && data.uid == uid
+        && isValidString(data.displayName, 1, 80)
+        && isValidLevel(data.level)
+        && data.totalPracticeMinutes is number && data.totalPracticeMinutes >= 0
+        && data.streakDays is number && data.streakDays >= 0
+        && data.averageAccuracy is number && data.averageAccuracy >= 0 && data.averageAccuracy <= 100
+        && data.weakIntervals is list && data.weakIntervals.size() <= 16
+        && data.badges is list && data.badges.size() <= 32
+        && data.placementCompleted is bool
+        && isEpochMs(data.createdAt)
+        && isEpochMs(data.updatedAt)
+        && data.updatedAt >= data.createdAt;
+    }
+
+    function validSrsCard(data) {
+      return data.keys().hasOnly([
+          'gushehId', 'easeFactor', 'intervalDays', 'repetitions',
+          'nextReviewAt', 'lastQuality', 'updatedAt'
+        ])
+        && isValidString(data.gushehId, 2, 80)
+        && data.easeFactor is number && data.easeFactor >= 1.3 && data.easeFactor <= 3.5
+        && data.intervalDays is number && data.intervalDays >= 0
+        && data.repetitions is number && data.repetitions >= 0
+        && isEpochMs(data.nextReviewAt)
+        && data.lastQuality is number && data.lastQuality >= 0 && data.lastQuality <= 5
+        && isEpochMs(data.updatedAt);
+    }
+
+    function validPracticeSession(data) {
+      return data.keys().hasOnly([
+          'gushehId', 'dastgahId', 'instrument', 'durationSeconds',
+          'accuracyPercent', 'foroudScore', 'tahrirDetected', 'avgCentsError', 'completedAt'
+        ])
+        && isValidString(data.gushehId, 2, 80)
+        && isValidString(data.dastgahId, 2, 40)
+        && isValidInstrument(data.instrument)
+        && data.durationSeconds is number && data.durationSeconds >= 1 && data.durationSeconds <= 14400
+        && data.accuracyPercent is number && data.accuracyPercent >= 0 && data.accuracyPercent <= 100
+        && data.foroudScore is number && data.foroudScore >= 0 && data.foroudScore <= 100
+        && data.tahrirDetected is bool
+        && data.avgCentsError is number && data.avgCentsError >= 0 && data.avgCentsError <= 200
+        && isEpochMs(data.completedAt);
+    }
+
+    function validPlacementTest(data) {
+      return data.keys().hasOnly([
+          'earScore', 'pitchScore', 'recommendedLevel', 'weakIntervals', 'completedAt'
+        ])
+        && data.earScore is number && data.earScore >= 0 && data.earScore <= 100
+        && data.pitchScore is number && data.pitchScore >= 0 && data.pitchScore <= 100
+        && isValidLevel(data.recommendedLevel)
+        && data.weakIntervals is list && data.weakIntervals.size() <= 16
+        && isEpochMs(data.completedAt);
+    }
+
+    function validSavedRecording(data) {
+      return data.keys().hasOnly([
+          'ownerUid', 'ownerName', 'gushehId', 'dastgahId', 'instrument', 'title',
+          'durationSeconds', 'avgAccuracy', 'rmsDb', 'envelope', 'isPublic',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidString(data.ownerUid, 1, 128)
+        && isValidString(data.ownerName, 1, 80)
+        && isValidString(data.gushehId, 2, 80)
+        && isValidString(data.dastgahId, 2, 40)
+        && isValidInstrument(data.instrument)
+        && isValidString(data.title, 1, 120)
+        && data.durationSeconds is number && data.durationSeconds >= 0 && data.durationSeconds <= 3600
+        && data.avgAccuracy is number && data.avgAccuracy >= 0 && data.avgAccuracy <= 100
+        && data.rmsDb is number && data.rmsDb >= -120 && data.rmsDb <= 12
+        && data.envelope is list && data.envelope.size() <= 128
+        && data.isPublic is bool
+        && isEpochMs(data.createdAt)
+        && isEpochMs(data.updatedAt)
+        && data.updatedAt >= data.createdAt;
+    }
+
+    function validForumPostCreate(data) {
+      return data.keys().hasOnly([
+          'authorUid', 'authorName', 'title', 'body', 'dastgahId', 'tags',
+          'replyCount', 'lastReplyId', 'createdAt', 'updatedAt'
+        ])
+        && data.authorUid == request.auth.uid
+        && isValidString(data.authorName, 1, 80)
+        && isValidString(data.title, 3, 140)
+        && isValidString(data.body, 5, 4000)
+        && isValidString(data.dastgahId, 2, 40)
+        && data.tags is list && data.tags.size() <= 6
+        && data.replyCount == 0
+        && data.lastReplyId == null
+        && isEpochMs(data.createdAt)
+        && isEpochMs(data.updatedAt)
+        && data.updatedAt >= data.createdAt;
+    }
+
+    function validPracticeRoom(data) {
+      return data.keys().hasOnly([
+          'hostUid', 'hostName', 'title', 'dastgahId', 'gushehId', 'instrument',
+          'tempoBpm', 'meter', 'metronomeActive', 'isPlaying',
+          'activeParticipants', 'createdAt', 'updatedAt'
+        ])
+        && isValidString(data.hostUid, 1, 128)
+        && isValidString(data.hostName, 1, 80)
+        && isValidString(data.title, 2, 100)
+        && isValidString(data.dastgahId, 2, 40)
+        && isValidString(data.gushehId, 2, 80)
+        && isValidInstrument(data.instrument)
+        && data.tempoBpm is number && data.tempoBpm >= 40 && data.tempoBpm <= 220
+        && isValidMeter(data.meter)
+        && data.metronomeActive is bool
+        && data.isPlaying is bool
+        && data.activeParticipants is list && data.activeParticipants.size() <= 32
+        && isEpochMs(data.createdAt)
+        && isEpochMs(data.updatedAt)
+        && data.updatedAt >= data.createdAt;
+    }
+
+    // -------------------------------------------------------------------------
+    // 1. User Profiles & Private Learning Subcollections
+    // -------------------------------------------------------------------------
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && validUserProfile(request.resource.data, uid);
+      allow update: if isOwner(uid)
+        && validUserProfile(request.resource.data, uid)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt >= resource.data.updatedAt;
+      allow delete: if isOwner(uid);
+
+      match /srs_cards/{cardId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validSrsCard(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+
+      match /practice_sessions/{sessionId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid) && validPracticeSession(request.resource.data);
+        allow update: if false;
+        allow delete: if isOwner(uid);
+      }
+
+      match /placement_tests/{testId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid) && validPlacementTest(request.resource.data);
+        allow update: if false;
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 2. Saved Recordings (Private Archive + Opt-in Public Gallery)
+    // -------------------------------------------------------------------------
+    match /saved_recordings/{recordingId} {
+      allow read: if isOwner(resource.data.ownerUid)
+        || (isSignedIn() && resource.data.isPublic == true);
+
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && validSavedRecording(request.resource.data);
+
+      // Safe update with strict owner check, immutable ownership/createdAt,
+      // and mandatory monotonic updatedAt verification.
+      allow update: if isOwner(resource.data.ownerUid)
+        && validSavedRecording(request.resource.data)
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt > resource.data.updatedAt
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['title', 'isPublic', 'updatedAt']);
+
+      allow delete: if isOwner(resource.data.ownerUid);
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. Community Forum Posts & Replies (Atomic writeBatch Anti-Spoofing)
+    // -------------------------------------------------------------------------
+    match /forum_posts/{postId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && validForumPostCreate(request.resource.data);
+
+      // Two strictly separated update paths:
+      // Path A: Author edits text fields without touching replyCount/lastReplyId.
+      // Path B: Atomic reply increment paired with a brand-new reply document via writeBatch,
+      //         enforced with !exists && existsAfter && getAfter on lastReplyId.
+      allow update: if isSignedIn() && (
+        (
+          isOwner(resource.data.authorUid)
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['title', 'body', 'tags', 'updatedAt'])
+          && isValidString(request.resource.data.title, 3, 140)
+          && isValidString(request.resource.data.body, 5, 4000)
+          && request.resource.data.tags is list && request.resource.data.tags.size() <= 6
+          && isEpochMs(request.resource.data.updatedAt)
+          && request.resource.data.updatedAt >= resource.data.updatedAt
+        )
+        ||
+        (
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['replyCount', 'lastReplyId', 'updatedAt'])
+          && request.resource.data.replyCount == resource.data.replyCount + 1
+          && isValidString(request.resource.data.lastReplyId, 4, 128)
+          && isEpochMs(request.resource.data.updatedAt)
+          && request.resource.data.updatedAt >= resource.data.updatedAt
+          && !exists(/databases/$(database)/documents/forum_posts/$(postId)/replies/$(request.resource.data.lastReplyId))
+          && existsAfter(/databases/$(database)/documents/forum_posts/$(postId)/replies/$(request.resource.data.lastReplyId))
+          && getAfter(/databases/$(database)/documents/forum_posts/$(postId)/replies/$(request.resource.data.lastReplyId)).data.authorUid == request.auth.uid
+          && getAfter(/databases/$(database)/documents/forum_posts/$(postId)/replies/$(request.resource.data.lastReplyId)).data.postId == postId
+        )
+      );
+
+      allow delete: if isOwner(resource.data.authorUid);
+
+      match /replies/{replyId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.keys().hasOnly(['postId', 'authorUid', 'authorName', 'body', 'createdAt'])
+          && request.resource.data.postId == postId
+          && request.resource.data.authorUid == request.auth.uid
+          && isValidString(request.resource.data.authorName, 1, 80)
+          && isValidString(request.resource.data.body, 2, 2000)
+          && isEpochMs(request.resource.data.createdAt)
+          && getAfter(/databases/$(database)/documents/forum_posts/$(postId)).data.lastReplyId == replyId;
+        allow update: if false;
+        allow delete: if isOwner(resource.data.authorUid);
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 4. Live Synchronized Practice Rooms
+    // -------------------------------------------------------------------------
+    match /practice_rooms/{roomId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.hostUid == request.auth.uid
+        && validPracticeRoom(request.resource.data);
+
+      allow update: if isSignedIn()
+        && validPracticeRoom(request.resource.data)
+        && request.resource.data.hostUid == resource.data.hostUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt >= resource.data.updatedAt
+        && (
+          isOwner(resource.data.hostUid)
+          || request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['activeParticipants', 'updatedAt'])
+        );
+
+      allow delete: if isOwner(resource.data.hostUid);
+    }
+
+    // Default deny for everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

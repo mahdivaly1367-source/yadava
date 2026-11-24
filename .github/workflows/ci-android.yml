@@ -1,0 +1,189 @@
+name: Navanegar CI — Web, PWA, Firestore Rules & Dual-Market Android
+
+on:
+  push:
+    branches: [main, 'arena/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  web-and-security-tests:
+    name: Web Typecheck, Lint, Unit Tests, Firestore Rules & PWA Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+      - name: ESLint + firestore.rules audit
+        run: |
+          npx eslint .
+          npx eslint firestore.rules
+          node scripts/validate-firestore-rules.mjs
+
+      - name: Run unit & integration tests
+        run: npm test
+
+      - name: Install Firebase CLI & run isolated Firestore Security Rules tests
+        run: |
+          npm install -g firebase-tools
+          npm run test:rules
+
+      - name: Build production Web & PWA bundle (dist/)
+        run: npm run build
+
+      - name: Upload Web/PWA dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: navanegar-web-pwa-dist
+          path: dist/
+
+  android-debug-builds:
+    name: Android Debug APKs (CafeBazaar & Myket)
+    needs: web-and-security-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install dependencies & sync Capacitor Android
+        run: |
+          npm ci
+          npm run build
+          npx cap sync android
+
+      - name: Build Bazaar & Myket Debug APKs
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleBazaarDebug assembleMyketDebug
+
+      - name: Verify Debug APK outputs exist
+        run: |
+          ls -lh android/app/build/outputs/apk/bazaar/debug/app-bazaar-debug.apk
+          ls -lh android/app/build/outputs/apk/myket/debug/app-myket-debug.apk
+
+      - name: Upload Debug APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: navanegar-android-debug-apks
+          path: |
+            android/app/build/outputs/apk/bazaar/debug/app-bazaar-debug.apk
+            android/app/build/outputs/apk/myket/debug/app-myket-debug.apk
+
+  android-release-builds:
+    name: Android Signed Release APK & AAB (CafeBazaar & Myket)
+    needs: android-debug-builds
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check signing & market secrets availability
+        id: check_secrets
+        env:
+          HAS_KEYSTORE: ${{ secrets.NAVANEGAR_KEYSTORE_BASE64 != '' }}
+          HAS_BAZAAR_RSA: ${{ secrets.NAVANEGAR_BAZAAR_RSA_KEY != '' }}
+          HAS_MYKET_RSA: ${{ secrets.NAVANEGAR_MYKET_RSA_KEY != '' }}
+          HAS_GS_JSON: ${{ secrets.NAVANEGAR_GOOGLE_SERVICES_JSON != '' }}
+        run: |
+          if [ "$HAS_KEYSTORE" = "true" ] && [ "$HAS_BAZAAR_RSA" = "true" ] && [ "$HAS_MYKET_RSA" = "true" ] && [ "$HAS_GS_JSON" = "true" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Release secrets not configured; skipping signed Release APK/AAB job."
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.check_secrets.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        if: steps.check_secrets.outputs.ready == 'true'
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+        if: steps.check_secrets.outputs.ready == 'true'
+
+      - name: Materialize signing keystore, keystore.properties & google-services.json
+        if: steps.check_secrets.outputs.ready == 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.NAVANEGAR_KEYSTORE_BASE64 }}
+          STORE_PASS: ${{ secrets.NAVANEGAR_KEYSTORE_STORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.NAVANEGAR_KEYSTORE_KEY_PASSWORD }}
+          GS_JSON_B64: ${{ secrets.NAVANEGAR_GOOGLE_SERVICES_JSON }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 --decode > android/navanegar-release.jks
+          echo "$GS_JSON_B64" | base64 --decode > android/app/google-services.json
+          cat <<EOF > android/keystore.properties
+          storeFile=navanegar-release.jks
+          storePassword=${STORE_PASS}
+          keyAlias=navanegar-release
+          keyPassword=${KEY_PASS}
+          EOF
+
+      - name: Build web bundle & sync Capacitor Android
+        if: steps.check_secrets.outputs.ready == 'true'
+        run: |
+          npm ci
+          npm run build
+          npx cap sync android
+
+      - name: Build signed Release APKs & AABs for CafeBazaar and Myket
+        if: steps.check_secrets.outputs.ready == 'true'
+        working-directory: android
+        env:
+          NAVANEGAR_BAZAAR_RSA_KEY: ${{ secrets.NAVANEGAR_BAZAAR_RSA_KEY }}
+          NAVANEGAR_MYKET_RSA_KEY: ${{ secrets.NAVANEGAR_MYKET_RSA_KEY }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleBazaarRelease bundleBazaarRelease
+          ./gradlew assembleMyketRelease bundleMyketRelease
+
+      - name: Verify APK signatures with apksigner
+        if: steps.check_secrets.outputs.ready == 'true'
+        run: |
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
+          "$APKSIGNER" verify --verbose android/app/build/outputs/apk/bazaar/release/app-bazaar-release.apk
+          "$APKSIGNER" verify --verbose android/app/build/outputs/apk/myket/release/app-myket-release.apk
+
+      - name: Upload Signed Release APKs & AABs
+        if: steps.check_secrets.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: navanegar-android-release-signed
+          path: |
+            android/app/build/outputs/apk/bazaar/release/app-bazaar-release.apk
+            android/app/build/outputs/bundle/bazaarRelease/app-bazaar-release.aab
+            android/app/build/outputs/apk/myket/release/app-myket-release.apk
+            android/app/build/outputs/bundle/myketRelease/app-myket-release.aab

@@ -1,0 +1,133 @@
+{
+  "projectName": "Navanegar (نوانگار)",
+  "applicationId": "ir.navanegar.radif",
+  "firestore": {
+    "databaseId": "navanegar-db",
+    "longPolling": true,
+    "rulesFile": "firestore.rules",
+    "indexesFile": "firestore.indexes.json"
+  },
+  "collections": {
+    "users": {
+      "path": "users/{uid}",
+      "description": "Private learner profile, adaptive stats, weak intervals, and achievements.",
+      "fields": {
+        "uid": "string (matches document id)",
+        "displayName": "string (1..80)",
+        "level": "string ('beginner' | 'intermediate' | 'advanced')",
+        "totalPracticeMinutes": "number (>= 0)",
+        "streakDays": "number (>= 0)",
+        "averageAccuracy": "number (0..100)",
+        "weakIntervals": "list<string> (<= 16)",
+        "badges": "list<string> (<= 32)",
+        "placementCompleted": "boolean",
+        "createdAt": "number (epoch ms)",
+        "updatedAt": "number (epoch ms)"
+      },
+      "subcollections": {
+        "srs_cards": {
+          "path": "users/{uid}/srs_cards/{cardId}",
+          "fields": {
+            "gushehId": "string",
+            "easeFactor": "number (1.3..3.5)",
+            "intervalDays": "number (>= 0)",
+            "repetitions": "number (>= 0)",
+            "nextReviewAt": "number (epoch ms)",
+            "lastQuality": "number (0..5)",
+            "updatedAt": "number (epoch ms)"
+          }
+        },
+        "practice_sessions": {
+          "path": "users/{uid}/practice_sessions/{sessionId}",
+          "fields": {
+            "gushehId": "string",
+            "dastgahId": "string",
+            "instrument": "string ('tar' | 'setar' | 'santur' | 'ney')",
+            "durationSeconds": "number (1..14400)",
+            "accuracyPercent": "number (0..100)",
+            "foroudScore": "number (0..100)",
+            "tahrirDetected": "boolean",
+            "avgCentsError": "number (0..200)",
+            "completedAt": "number (epoch ms)"
+          }
+        },
+        "placement_tests": {
+          "path": "users/{uid}/placement_tests/{testId}",
+          "fields": {
+            "earScore": "number (0..100)",
+            "pitchScore": "number (0..100)",
+            "recommendedLevel": "string ('beginner' | 'intermediate' | 'advanced')",
+            "weakIntervals": "list<string> (<= 16)",
+            "completedAt": "number (epoch ms)"
+          }
+        }
+      }
+    },
+    "saved_recordings": {
+      "path": "saved_recordings/{recordingId}",
+      "description": "Saved practice recording metadata and public gallery sharing.",
+      "fields": {
+        "ownerUid": "string (immutable, matches auth.uid)",
+        "ownerName": "string (1..80)",
+        "gushehId": "string",
+        "dastgahId": "string",
+        "instrument": "string ('tar' | 'setar' | 'santur' | 'ney')",
+        "title": "string (1..120)",
+        "durationSeconds": "number (0..3600)",
+        "avgAccuracy": "number (0..100)",
+        "rmsDb": "number (-120..12)",
+        "envelope": "list<number> (<= 128)",
+        "isPublic": "boolean",
+        "createdAt": "number (immutable epoch ms)",
+        "updatedAt": "number (monotonic epoch ms >= createdAt)"
+      }
+    },
+    "forum_posts": {
+      "path": "forum_posts/{postId}",
+      "description": "Q&A forum threads with atomic writeBatch replyCount & lastReplyId integrity.",
+      "fields": {
+        "authorUid": "string (immutable)",
+        "authorName": "string (1..80)",
+        "title": "string (3..140)",
+        "body": "string (5..4000)",
+        "dastgahId": "string",
+        "tags": "list<string> (<= 6)",
+        "replyCount": "number (>= 0, atomic increment only)",
+        "lastReplyId": "string | null (verified via !exists && existsAfter && getAfter)",
+        "createdAt": "number (immutable epoch ms)",
+        "updatedAt": "number (epoch ms)"
+      },
+      "subcollections": {
+        "replies": {
+          "path": "forum_posts/{postId}/replies/{replyId}",
+          "fields": {
+            "postId": "string (matches parent postId)",
+            "authorUid": "string (matches auth.uid)",
+            "authorName": "string (1..80)",
+            "body": "string (2..2000)",
+            "createdAt": "number (epoch ms)"
+          }
+        }
+      }
+    },
+    "practice_rooms": {
+      "path": "practice_rooms/{roomId}",
+      "description": "Live synchronized Radif practice rooms (host-synced gusheh, tempo, metronome).",
+      "fields": {
+        "hostUid": "string (immutable)",
+        "hostName": "string (1..80)",
+        "title": "string (2..100)",
+        "dastgahId": "string",
+        "gushehId": "string",
+        "instrument": "string ('tar' | 'setar' | 'santur' | 'ney')",
+        "tempoBpm": "number (40..220)",
+        "meter": "string ('2/4' | '3/4' | '4/4' | '5/8' | '6/8' | '7/8')",
+        "metronomeActive": "boolean",
+        "isPlaying": "boolean",
+        "activeParticipants": "list<string> (<= 32)",
+        "createdAt": "number (immutable epoch ms)",
+        "updatedAt": "number (epoch ms)"
+      }
+    }
+  }
+}

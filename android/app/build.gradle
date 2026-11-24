@@ -1,0 +1,213 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+
+def keystorePropsFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+def hasValidKeystore = false
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+    def sf = keystoreProps.getProperty('storeFile', '').trim()
+    def sp = keystoreProps.getProperty('storePassword', '').trim()
+    def ka = keystoreProps.getProperty('keyAlias', '').trim()
+    def kp = keystoreProps.getProperty('keyPassword', '').trim()
+    if (sf && sp && ka && kp && rootProject.file(sf).exists()) {
+        hasValidKeystore = true
+    }
+}
+
+def readSecret = { String name ->
+    def fromProp = project.findProperty(name)?.toString()?.trim()
+    def fromEnv = System.getenv(name)?.trim()
+    return (fromProp ?: fromEnv ?: '')
+}
+
+def bazaarRsaKey = readSecret('NAVANEGAR_BAZAAR_RSA_KEY')
+def myketRsaKey = readSecret('NAVANEGAR_MYKET_RSA_KEY')
+def escapeForBuildConfig = { String v -> v.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '') }
+
+android {
+    namespace "ir.navanegar.radif"
+    compileSdk rootProject.ext.compileSdkVersion
+
+    defaultConfig {
+        applicationId "ir.navanegar.radif"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    signingConfigs {
+        release {
+            if (hasValidKeystore) {
+                storeFile rootProject.file(keystoreProps.getProperty('storeFile').trim())
+                storePassword keystoreProps.getProperty('storePassword').trim()
+                keyAlias keystoreProps.getProperty('keyAlias').trim()
+                keyPassword keystoreProps.getProperty('keyPassword').trim()
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+            }
+        }
+    }
+
+    flavorDimensions "market"
+    productFlavors {
+        bazaar {
+            dimension "market"
+            buildConfigField "String", "MARKET_FLAVOR", '"bazaar"'
+            buildConfigField "String", "MARKET_RSA_KEY", "\"${escapeForBuildConfig(bazaarRsaKey)}\""
+            manifestPlaceholders = [
+                marketApplicationId: "com.farsitel.bazaar",
+                marketBindAddress  : "ir.cafebazaar.pardakht.InAppBillingService.BIND",
+                marketPermission   : "com.farsitel.bazaar.permission.PAY_THROUGH_BAZAAR"
+            ]
+        }
+        myket {
+            dimension "market"
+            buildConfigField "String", "MARKET_FLAVOR", '"myket"'
+            buildConfigField "String", "MARKET_RSA_KEY", "\"${escapeForBuildConfig(myketRsaKey)}\""
+            manifestPlaceholders = [
+                marketApplicationId: "ir.mservices.market",
+                marketBindAddress  : "ir.mservices.market.InAppBillingService.BIND",
+                marketPermission   : "ir.mservices.market.BILLING"
+            ]
+        }
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled false
+            debuggable true
+        }
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (hasValidKeystore) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}
+
+// =============================================================================
+// Strict Release Security Lock:
+// Prevents building unsigned Release artifacts or Release builds without valid
+// CafeBazaar / Myket RSA public keys or google-services.json.
+// =============================================================================
+def isPlaceholderSecret = { String value ->
+    if (!value || value.trim().length() < 32) return true
+    def lower = value.toLowerCase()
+    return lower.contains('placeholder') || lower.contains('replace_me') || lower.contains('your_')
+}
+
+tasks.register('verifyBazaarReleaseSecurity') {
+    doLast {
+        if (!hasValidKeystore) {
+            throw new GradleException(
+                "SECURITY LOCK: android/keystore.properties or its .jks file (alias: navanegar-release) is missing. Release build aborted."
+            )
+        }
+        if (keystoreProps.getProperty('keyAlias', '').trim() != 'navanegar-release') {
+            throw new GradleException(
+                "SECURITY LOCK: keystore.properties keyAlias must be 'navanegar-release'."
+            )
+        }
+        if (!file('google-services.json').exists()) {
+            throw new GradleException(
+                "SECURITY LOCK: android/app/google-services.json is required for Release builds."
+            )
+        }
+        if (isPlaceholderSecret(bazaarRsaKey)) {
+            throw new GradleException(
+                "SECURITY LOCK: NAVANEGAR_BAZAAR_RSA_KEY must be set to your real CafeBazaar RSA Public Key for Bazaar Release builds. SecurityCheck.Disable is strictly forbidden in Release."
+            )
+        }
+    }
+}
+
+tasks.register('verifyMyketReleaseSecurity') {
+    doLast {
+        if (!hasValidKeystore) {
+            throw new GradleException(
+                "SECURITY LOCK: android/keystore.properties or its .jks file (alias: navanegar-release) is missing. Release build aborted."
+            )
+        }
+        if (keystoreProps.getProperty('keyAlias', '').trim() != 'navanegar-release') {
+            throw new GradleException(
+                "SECURITY LOCK: keystore.properties keyAlias must be 'navanegar-release'."
+            )
+        }
+        if (!file('google-services.json').exists()) {
+            throw new GradleException(
+                "SECURITY LOCK: android/app/google-services.json is required for Release builds."
+            )
+        }
+        if (isPlaceholderSecret(myketRsaKey)) {
+            throw new GradleException(
+                "SECURITY LOCK: NAVANEGAR_MYKET_RSA_KEY must be set to your real Myket RSA Public Key for Myket Release builds."
+            )
+        }
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name in ['preBazaarReleaseBuild', 'assembleBazaarRelease', 'bundleBazaarRelease']) {
+        task.dependsOn('verifyBazaarReleaseSecurity')
+    }
+    if (task.name in ['preMyketReleaseBuild', 'assembleMyketRelease', 'bundleMyketRelease']) {
+        task.dependsOn('verifyMyketReleaseSecurity')
+    }
+}
+
+repositories {
+    flatDir {
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    implementation project(':capacitor-cordova-android-plugins')
+
+    // Market-specific native in-app billing SDKs
+    bazaarImplementation 'com.github.cafebazaar.Poolakey:poolakey:2.2.0'
+    myketImplementation 'ir.myket:billing:2.2'
+
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.exists() && servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch (Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied for debug preview.")
+}

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="نوانگار">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="55%" stop-color="#115e59"/>
+      <stop offset="100%" stop-color="#0d9488"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde68a"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- Eight-pointed Persian Shamsa -->
+  <g transform="translate(256 256)" fill="none" stroke="url(#gold)" stroke-width="7" opacity="0.9">
+    <rect x="-120" y="-120" width="240" height="240" rx="18"/>
+    <rect x="-120" y="-120" width="240" height="240" rx="18" transform="rotate(45)"/>
+    <circle r="158" stroke-dasharray="10 10" stroke-width="4" opacity="0.65"/>
+  </g>
+  <!-- Stylized Tar Silhouette & Microtonal Wave -->
+  <g transform="translate(256 256)">
+    <ellipse cx="0" cy="48" rx="54" ry="62" fill="#0f172a" stroke="url(#gold)" stroke-width="8"/>
+    <ellipse cx="0" cy="-22" rx="34" ry="38" fill="#0f172a" stroke="url(#gold)" stroke-width="8"/>
+    <line x1="0" y1="-152" x2="0" y2="85" stroke="#fde68a" stroke-width="7" stroke-linecap="round"/>
+    <line x1="-10" y1="-148" x2="-10" y2="85" stroke="#5eead4" stroke-width="2.5" opacity="0.85"/>
+    <line x1="10" y1="-148" x2="10" y2="85" stroke="#5eead4" stroke-width="2.5" opacity="0.85"/>
+    <!-- Quarter-tone Koron accent motif -->
+    <path d="M-85,12 Q-45,-30 0,12 T85,12" fill="none" stroke="#5eead4" stroke-width="6" stroke-linecap="round" opacity="0.9"/>
+    <circle cx="0" cy="48" r="10" fill="url(#gold)"/>
+  </g>
+</svg>
