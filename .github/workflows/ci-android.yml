@@ -93,7 +93,15 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleBazaarDebug assembleMyketDebug
+          set +e
+          ./gradlew assembleBazaarDebug assembleMyketDebug --no-daemon --stacktrace > /tmp/gradle-build.log 2>&1
+          RC=$?
+          cat /tmp/gradle-build.log
+          if [ "$RC" -ne 0 ]; then
+            ERR=$(grep -E "(^FAILURE:|^\* What went wrong:|^> |^e: |error:|Exception:|Could not resolve|Could not find)" /tmp/gradle-build.log | head -n 20 | tr '\n' ' | ')
+            echo "::error title=Gradle Build Error::$ERR"
+            exit "$RC"
+          fi
 
       - name: Verify Debug APK outputs exist
         run: |
