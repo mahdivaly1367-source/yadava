@@ -98,8 +98,9 @@ jobs:
           RC=$?
           cat /tmp/gradle-build.log
           if [ "$RC" -ne 0 ]; then
-            ERR=$(grep -E "(^FAILURE:|^\* What went wrong:|^> |^e: |error:|Exception:|Could not resolve|Could not find)" /tmp/gradle-build.log | head -n 20 | tr '\n' ' | ')
-            echo "::error title=Gradle Build Error::$ERR"
+            ERR=$(awk '/\* What went wrong:/,/\* Try:/' /tmp/gradle-build.log | tr '\n' ' ')
+            KOTLIN_ERR=$(grep -E "(^e: |FAILED|error:)" /tmp/gradle-build.log | tail -n 15 | tr '\n' ' | ')
+            echo "::error title=Gradle Failure::$ERR || $KOTLIN_ERR"
             exit "$RC"
           fi
 
