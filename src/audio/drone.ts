@@ -75,20 +75,29 @@ export class PersianDroneEngine {
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
     filter.frequency.value =
-      config.timbre === 'tanbur' ? 920 : config.timbre === 'kamancheh' ? 1350 : 680;
-    filter.Q.value = config.timbre === 'kamancheh' ? 2.2 : 1.1;
+      config.timbre === 'tanbur' ? 880 : config.timbre === 'kamancheh' ? 1280 : 620;
+    filter.Q.value = config.timbre === 'kamancheh' ? 1.8 : 1.0;
+
+    // Warm wooden acoustic body formant filter for realistic Persian drone timbre
+    const bodyFormant = ctx.createBiquadFilter();
+    bodyFormant.type = 'peaking';
+    bodyFormant.frequency.value =
+      config.timbre === 'tanbur' ? 280 : config.timbre === 'kamancheh' ? 480 : 640;
+    bodyFormant.Q.value = 1.4;
+    bodyFormant.gain.value = 3.8;
 
     // Gentle acoustic breath modulation (0.18 Hz slow filter shimmer so drone sounds alive & organic)
     const lfo = ctx.createOscillator();
     const lfoGain = ctx.createGain();
     lfo.type = 'sine';
     lfo.frequency.value = 0.18;
-    lfoGain.gain.value = config.timbre === 'ney' ? 120 : 190;
+    lfoGain.gain.value = config.timbre === 'ney' ? 95 : 150;
     lfo.connect(lfoGain);
     lfoGain.connect(filter.frequency);
     lfo.start(now);
 
-    filter.connect(masterGain);
+    filter.connect(bodyFormant);
+    bodyFormant.connect(masterGain);
     masterGain.connect(ctx.destination);
 
     const freqs = computeDroneFrequencies(config);
@@ -96,7 +105,10 @@ export class PersianDroneEngine {
 
     freqs.forEach((freq, idx) => {
       const voiceGain = ctx.createGain();
-      voiceGain.gain.value = idx === 0 ? 0.55 : idx === 1 ? 0.3 : 0.18;
+      voiceGain.gain.value = idx === 0 ? 0.52 : idx === 1 ? 0.28 : 0.16;
+
+      // Symmetrically balanced (-0.75¢ / +0.75¢) so drone pitch center is dead-on 0.0¢!
+      const spread = Math.pow(2, 0.75 / 1200);
 
       const oscMain = ctx.createOscillator();
       oscMain.type =
@@ -105,12 +117,11 @@ export class PersianDroneEngine {
           : config.timbre === 'kamancheh'
           ? 'sawtooth'
           : 'triangle';
-      oscMain.frequency.setValueAtTime(freq, now);
+      oscMain.frequency.setValueAtTime(freq / spread, now);
 
-      // Subtle detuned sympathetic voice (+2.5 cents) for Tanbur/Kamancheh chorus richness
       const oscChorus = ctx.createOscillator();
       oscChorus.type = config.timbre === 'ney' ? 'sine' : 'triangle';
-      oscChorus.frequency.setValueAtTime(freq * Math.pow(2, 2.5 / 1200), now);
+      oscChorus.frequency.setValueAtTime(freq * spread, now);
 
       oscMain.connect(voiceGain);
       oscChorus.connect(voiceGain);

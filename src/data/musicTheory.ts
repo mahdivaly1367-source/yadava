@@ -298,24 +298,37 @@ export function getRecommendedTuning(dastgahId: string, instrument: InstrumentId
   if (instrument === 'santur') {
     const isMahur = dastgahId === 'mahur' || dastgahId === 'rast_panjgah';
     const isHomayun = dastgahId === 'homayun' || dastgahId === 'bayat_esfahan';
-    const isChahargah = dastgahId === 'chahargah' || dastgahId === 'segah';
-    const titleFa = isMahur
-      ? 'کوک سنتور ماهور (می و لا بکار)'
-      : isHomayun
-      ? 'کوک سنتور همایون (می کُرُن، لا کُرُن، سی بکار)'
-      : isChahargah
-      ? 'کوک سنتور چهارگاه/سه‌گاه (می و لا کُرُن، ر بمل)'
-      : 'کوک سنتور شور سل (می و لا کُرُن، سی بمل)';
+    const isChahargah = dastgahId === 'chahargah';
+    const isSegah = dastgahId === 'segah';
+    const isNava = dastgahId === 'nava';
 
-    const eAcc: Accidental = isMahur ? 'natural' : 'koron';
-    const aAcc: Accidental = isMahur ? 'natural' : 'koron';
-    const bAcc: Accidental = isHomayun || isMahur ? 'natural' : 'flat';
+    const titleFa = isMahur
+      ? 'کوک سنتور ماهور / راست‌پنجگاه (می و لا بکار)'
+      : isHomayun
+      ? 'کوک سنتور همایون / اصفهان (می بمل، لا کُرُن، سی بکار)'
+      : isChahargah
+      ? 'کوک سنتور چهارگاه دو (ر کُرُن، می بکار، لا کُرُن، سی بکار)'
+      : isSegah
+      ? 'کوک سنتور سه‌گاه (می کُرُن، لا کُرُن، سی بمل)'
+      : isNava
+      ? 'کوک سنتور نوا سُل (می کُرُن، لا بکار، سی بمل)'
+      : 'کوک سنتور شور سُل (می بمل، لا کُرُن، سی بمل)';
+
+    const eAcc: Accidental =
+      isMahur || isChahargah
+        ? 'natural'
+        : isSegah || isNava
+        ? 'koron'
+        : 'flat';
+    const aAcc: Accidental = isMahur || isNava ? 'natural' : 'koron';
+    const bAcc: Accidental =
+      dastgahId === 'mahur' || isHomayun || isChahargah ? 'natural' : 'flat';
 
     return {
       dastgahId,
       instrument,
       titleFa,
-      noteSummaryFa: 'خرک‌های کلیدی زرد (بم) و سفید (میانی)',
+      noteSummaryFa: 'خرک‌های کلیدی زرد (بم) و سفید (میانی) منطبق بر گام دستگاه',
       strings: [
         { id: 's-1', labelFa: 'خرک ۱ زرد', note: { letter: 'E', accidental: eAcc, octave: 3 } },
         { id: 's-3', labelFa: 'خرک ۳ زرد (شاهد)', note: { letter: 'G', accidental: 'natural', octave: 3 } },
@@ -432,22 +445,36 @@ export interface SanturBridge {
 
 /**
  * Generates all 27 authentic bridges (۲۷ خرک سنتور):
- * 9 خرک زرد (بم)، ۹ خرک سفید (میانی)، ۹ پشت‌خرک (زیر) tuned to the selected Dastgah.
+ * 9 خرک زرد (بم)، ۹ خرک سفید (میانی)، ۹ پشت‌خرک (زیر) tuned accurately to the selected Dastgah.
  */
 export function getSantur27Bridges(dastgahId: string): SanturBridge[] {
-  const isMahur = dastgahId === 'mahur' || dastgahId === 'rast_panjgah';
+  const isMahur = dastgahId === 'mahur';
+  const isRast = dastgahId === 'rast_panjgah';
   const isHomayun = dastgahId === 'homayun' || dastgahId === 'bayat_esfahan';
   const isChahargah = dastgahId === 'chahargah';
+  const isSegah = dastgahId === 'segah';
+  const isNava = dastgahId === 'nava';
+
+  // Exact Dastgah-matched accidentals for every bridge (zero out-of-scale bridges!)
+  const eAcc: Accidental =
+    isMahur || isRast || isChahargah
+      ? 'natural'
+      : isSegah || isNava
+      ? 'koron'
+      : 'flat';
+  const aAcc: Accidental = isMahur || isRast || isNava ? 'natural' : 'koron';
+  const bAcc: Accidental = isMahur || isHomayun || isChahargah ? 'natural' : 'flat';
+  const dAcc: Accidental = isChahargah ? 'koron' : 'natural';
 
   const scaleLetters: Array<{ letter: NoteLetter; accidental: Accidental; octaveOffset: number }> = [
-    { letter: 'E', accidental: isMahur ? 'natural' : 'koron', octaveOffset: 0 },
-    { letter: 'F', accidental: isHomayun ? 'sharp' : 'natural', octaveOffset: 0 },
+    { letter: 'E', accidental: eAcc, octaveOffset: 0 },
+    { letter: 'F', accidental: 'natural', octaveOffset: 0 },
     { letter: 'G', accidental: 'natural', octaveOffset: 0 },
-    { letter: 'A', accidental: isMahur ? 'natural' : 'koron', octaveOffset: 0 },
-    { letter: 'B', accidental: isMahur || isHomayun ? 'natural' : isChahargah ? 'natural' : 'flat', octaveOffset: 0 },
+    { letter: 'A', accidental: aAcc, octaveOffset: 0 },
+    { letter: 'B', accidental: bAcc, octaveOffset: 0 },
     { letter: 'C', accidental: 'natural', octaveOffset: 1 },
-    { letter: 'D', accidental: isChahargah ? 'koron' : 'natural', octaveOffset: 1 },
-    { letter: 'E', accidental: isMahur ? 'natural' : 'koron', octaveOffset: 1 },
+    { letter: 'D', accidental: dAcc, octaveOffset: 1 },
+    { letter: 'E', accidental: eAcc, octaveOffset: 1 },
     { letter: 'F', accidental: 'natural', octaveOffset: 1 },
   ];
 

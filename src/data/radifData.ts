@@ -438,16 +438,18 @@ const CHAHARGAH_DEFS: CompactGushehDef[] = [
 
 // =============================================================================
 // 11. دستگاه نوا (Dastgah-e Nava) — 16 Gushehs [PRO]
-// Scale (Nava of G): F4, G4 (ایست/شاهد), Ak4, Bb4, C5, D5 (شاهد نهفت/عشاق), Eb5, F5, G5
+// Scale (Nava of G — built on the 4th degree of Shur of D):
+// F4 (زیرپایه), G4 (ایست/شاهد), A4 (بکار), Bb4, C5, D5 (شاهد نهفت/عشاق), Ek5 (می کُرُن), F5, G5
+// Intervals from G4: [200, 100, 200, 200, 150, 150, 200] (Authentic Nava)
 // =============================================================================
 const NAVA_SCALE: PersianNoteSpec[] = [
   n('F', 'natural', 4), // 0
   n('G', 'natural', 4), // 1 (شاهد / ایست نوا)
-  n('A', 'koron', 4),   // 2
+  n('A', 'natural', 4), // 2 (دوم بزرگ — لا بکار، متمایز از شور)
   n('B', 'flat', 4),    // 3
   n('C', 'natural', 5), // 4
   n('D', 'natural', 5), // 5
-  n('E', 'flat', 5),    // 6
+  n('E', 'koron', 5),   // 6 (ششم کُرُن — می کُرُن اصیل نوا)
   n('F', 'natural', 5), // 7
   n('G', 'natural', 5), // 8
 ];
@@ -666,7 +668,7 @@ export const RADIF_SYSTEMS: DastgahSystem[] = [
     colorHex: '#06b6d4',
     moodFa: 'آرام، حکیمانه، عارفانه و متعادل',
     summaryFa: 'دستگاه آرامش‌بخش و کهن با گوشه‌های عمیقی چون نهفت، نیشابورک، عشاق و عراق.',
-    signatureNotes: [n('A', 'koron', 4), n('B', 'flat', 4), n('E', 'flat', 5)],
+    signatureNotes: [n('A', 'natural', 4), n('B', 'flat', 4), n('E', 'koron', 5)],
     shahed: n('G', 'natural', 4),
     ist: n('G', 'natural', 4),
     gushehs: NAVA_DEFS.map((d, i) => buildGusheh('nava', i + 1, NAVA_SCALE, d)),

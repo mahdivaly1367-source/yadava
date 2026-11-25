@@ -103,4 +103,33 @@ describe('Microtonal Persian Music Theory (Koron -50¢ / -56¢ & Sori +50¢)', (
     const tarMahur = getRecommendedTuning('mahur', 'tar');
     expect(tarMahur.titleFa).toContain('ماهور');
   });
+
+  it('enforces authentic Iranian modal scales (Nava vs Shur) and exact Santur 27-bridge accidentals per Dastgah', () => {
+    const nava = RADIF_SYSTEMS.find((s) => s.id === 'nava');
+    expect(nava).toBeDefined();
+    const navaScale = nava!.gushehs[0].scale;
+    // Authentic Nava of G: A4 must be natural (distinct from Shur's A4 koron) and E5 must be koron
+    expect(navaScale.find((s) => s.letter === 'A')?.accidental).toBe('natural');
+    expect(navaScale.find((s) => s.letter === 'E')?.accidental).toBe('koron');
+
+    // Homayun Santur bridges: F natural, Eb, A koron, B natural (no out-of-scale F#)
+    const homayunBridges = getSantur27Bridges('homayun');
+    expect(homayunBridges.find((b) => b.note.letter === 'F')?.note.accidental).toBe('natural');
+    expect(homayunBridges.find((b) => b.note.letter === 'E')?.note.accidental).toBe('flat');
+    expect(homayunBridges.find((b) => b.note.letter === 'A')?.note.accidental).toBe('koron');
+    expect(homayunBridges.find((b) => b.note.letter === 'B')?.note.accidental).toBe('natural');
+
+    // Chahargah Santur bridges: D koron, E natural, A koron, B natural
+    const chahargahBridges = getSantur27Bridges('chahargah');
+    expect(chahargahBridges.find((b) => b.note.letter === 'D')?.note.accidental).toBe('koron');
+    expect(chahargahBridges.find((b) => b.note.letter === 'E')?.note.accidental).toBe('natural');
+    expect(chahargahBridges.find((b) => b.note.letter === 'A')?.note.accidental).toBe('koron');
+    expect(chahargahBridges.find((b) => b.note.letter === 'B')?.note.accidental).toBe('natural');
+
+    // Nava Santur bridges: E koron, A natural, B flat
+    const navaBridges = getSantur27Bridges('nava');
+    expect(navaBridges.find((b) => b.note.letter === 'E')?.note.accidental).toBe('koron');
+    expect(navaBridges.find((b) => b.note.letter === 'A')?.note.accidental).toBe('natural');
+    expect(navaBridges.find((b) => b.note.letter === 'B')?.note.accidental).toBe('flat');
+  });
 });

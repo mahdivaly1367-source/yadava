@@ -122,6 +122,36 @@ describe('Karplus-Strong Physical Modeling Synthesis, Metronome & Recording Anal
     }
   });
 
+  it('maintains sub-2-cent pitch accuracy with zero octave jumps across Tar, Setar, Santur, and Ney (including Koron)', () => {
+    const instruments: InstrumentId[] = ['tar', 'setar', 'santur', 'ney'];
+    const sr = 44100;
+    const notes = [
+      { letter: 'D' as const, accidental: 'natural' as const, octave: 3 },
+      { letter: 'E' as const, accidental: 'koron' as const, octave: 4 },
+      { letter: 'G' as const, accidental: 'natural' as const, octave: 4 },
+      { letter: 'A' as const, accidental: 'koron' as const, octave: 4 },
+      { letter: 'C' as const, accidental: 'natural' as const, octave: 5 },
+      { letter: 'G' as const, accidental: 'natural' as const, octave: 5 },
+    ];
+
+    for (const inst of instruments) {
+      for (const note of notes) {
+        const targetHz = noteToFrequency(note, 440, 'traditional_56');
+        const samples = synthesizeKarplusStrongSamples({
+          frequency: targetHz,
+          sampleRate: sr,
+          durationSec: 0.65,
+          instrument: inst,
+        });
+        const steadyWindow = samples.subarray(8820, 8820 + 4096);
+        const yin = detectPitchYin(steadyWindow, sr, { rmsThreshold: 0.001 });
+        expect(yin.frequency).not.toBeNull();
+        const errCents = Math.abs(1200 * Math.log2((yin.frequency ?? 1) / targetHz));
+        expect(errCents).toBeLessThan(2.0);
+      }
+    }
+  });
+
   it('supports all 6 Iranian meters and accurate Tap Tempo calculation', () => {
     expect(Object.keys(IRANIAN_METERS)).toEqual(['2/4', '3/4', '4/4', '5/8', '6/8', '7/8']);
     expect(IRANIAN_METERS['5/8'].pulsesPerBar).toBe(5);
