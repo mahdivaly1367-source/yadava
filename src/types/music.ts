@@ -1,4 +1,11 @@
-export type InstrumentId = 'tar' | 'setar' | 'santur' | 'ney';
+export type InstrumentId =
+  | 'tar'
+  | 'setar'
+  | 'santur'
+  | 'ney'
+  | 'kamancheh'
+  | 'oud'
+  | 'tanbur';
 
 export type KoronMode = 'standard_50' | 'traditional_56';
 

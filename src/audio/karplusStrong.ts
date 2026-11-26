@@ -7,6 +7,7 @@ import type {
   PersianNoteSpec,
 } from '../types/music';
 import { getAudioContext } from './audioContext';
+import { expandNoteWithOrnaments } from './ornamentEngine';
 
 export interface KarplusSynthOptions {
   frequency: number;
@@ -15,6 +16,7 @@ export interface KarplusSynthOptions {
   instrument: InstrumentId;
   ornament?: OrnamentType;
   velocity?: number;
+  slideFromHz?: number;
 }
 
 /**
@@ -168,6 +170,7 @@ export function synthesizeKarplusStrongSamples(opts: KarplusSynthOptions): Float
     instrument,
     ornament,
     velocity = 0.85,
+    slideFromHz,
   } = opts;
 
   const safeFreq = Math.max(55, Math.min(2600, frequency));
@@ -198,6 +201,8 @@ export function synthesizeKarplusStrongSamples(opts: KarplusSynthOptions): Float
     let phase = 0;
     const attackSec = 0.055;
     const releaseSec = 0.095;
+    const hasSlide = typeof slideFromHz === 'number' && slideFromHz > 40 && Math.abs(slideFromHz - safeFreq) > 0.5;
+    const slideDur = Math.min(0.11, durationSec * 0.28);
 
     for (let i = 0; i < totalSamples; i++) {
       const t = i / sampleRate;
@@ -207,13 +212,17 @@ export function synthesizeKarplusStrongSamples(opts: KarplusSynthOptions): Float
 
       // Subtle natural breath onset scoop (-9¢ -> 0¢ in first 38ms, exact 0¢ steady-state)
       const onsetScoopCents = t < 0.038 ? -9 * Math.pow(1 - t / 0.038, 2) : 0;
+      const slideCents =
+        hasSlide && t < slideDur
+          ? 1200 * Math.log2((slideFromHz as number) / safeFreq) * Math.pow(1 - t / slideDur, 1.8)
+          : 0;
       const vibRamp = isTahrir
         ? Math.min(1, Math.max(0, (t - 0.06) / 0.08))
         : Math.min(1, Math.max(0, (t - 0.18) / 0.2));
       const vibCents =
         vibratoDepthCents * Math.sin(2 * Math.PI * vibratoRate * t) * vibRamp;
 
-      const instFreq = safeFreq * Math.pow(2, (onsetScoopCents + vibCents) / 1200);
+      const instFreq = safeFreq * Math.pow(2, (onsetScoopCents + slideCents + vibCents) / 1200);
       phase += (2 * Math.PI * instFreq) / sampleRate;
 
       // Authentic hollow bamboo reed overtone balance (rich warm 2nd & 3rd harmonics)
@@ -251,7 +260,90 @@ export function synthesizeKarplusStrongSamples(opts: KarplusSynthOptions): Float
   }
 
   // =========================================================================
-  // 2. PLUCKED / HAMMERED PERSIAN STRING WAVEGUIDE (Tar, Setar, Santur)
+  // 1B. PERSIAN KAMANCHEH (کمانچه — Bowed Spike Fiddle + Rosin + Skin Formants)
+  // =========================================================================
+  if (instrument === 'kamancheh') {
+    const isTahrir = ornament === 'tahrir';
+    const isRiz = ornament === 'riz';
+    const vibratoRate = isTahrir ? 6.0 : 5.2;
+    const vibratoDepthCents = isTahrir ? 44 : 2.1;
+
+    const rosinLow = new Float32Array(totalSamples);
+    const rosinHigh = new Float32Array(totalSamples);
+    for (let i = 0; i < totalSamples; i++) {
+      rosinLow[i] = rand();
+      rosinHigh[i] = rand();
+    }
+    applyBiquadInPlace(rosinLow, sampleRate, 'bandpass', Math.min(sampleRate * 0.42, safeFreq * 2.0), 4.0);
+    applyBiquadInPlace(rosinHigh, sampleRate, 'bandpass', Math.min(sampleRate * 0.44, Math.max(1400, safeFreq * 3.5)), 2.5);
+
+    let phase = 0;
+    const attackSec = isRiz ? 0.026 : 0.068;
+    const releaseSec = 0.092;
+    const hasSlide = typeof slideFromHz === 'number' && slideFromHz > 40 && Math.abs(slideFromHz - safeFreq) > 0.5;
+    const slideDur = Math.min(0.13, durationSec * 0.32);
+
+    for (let i = 0; i < totalSamples; i++) {
+      const t = i / sampleRate;
+      const envAttack = Math.min(1, Math.pow(t / attackSec, 0.85));
+      const envRelease = Math.min(1, Math.max(0, (durationSec - t) / releaseSec));
+      const bowSwell = 0.88 + 0.12 * Math.sin(Math.PI * Math.min(1, t / Math.max(0.12, durationSec)));
+      const env = envAttack * envRelease * bowSwell;
+
+      const slideCents = hasSlide && t < slideDur
+        ? 1200 * Math.log2((slideFromHz as number) / safeFreq) * Math.pow(1 - t / slideDur, 1.65)
+        : t < 0.032
+        ? -5.5 * Math.pow(1 - t / 0.032, 2)
+        : 0;
+
+      const vibRamp = isTahrir
+        ? Math.min(1, Math.max(0, (t - 0.05) / 0.07))
+        : Math.min(1, Math.max(0, (t - 0.18) / 0.2));
+      const vibCents =
+        vibratoDepthCents * Math.sin(2 * Math.PI * vibratoRate * t) * vibRamp;
+
+      const instFreq = safeFreq * Math.pow(2, (slideCents + vibCents) / 1200);
+      phase += (2 * Math.PI * instFreq) / sampleRate;
+
+      // Bowed Helmholtz slip-stick overtone series (singing Persian spike-fiddle warmth)
+      const bowBright = 0.72 + 0.28 * env;
+      let bowed =
+        0.64 * Math.sin(phase) +
+        0.29 * bowBright * Math.sin(2 * phase + 0.12) +
+        0.18 * bowBright * Math.sin(3 * phase - 0.08) +
+        0.105 * bowBright * Math.sin(4 * phase + 0.05) +
+        0.062 * bowBright * Math.sin(5 * phase) +
+        0.038 * bowBright * Math.sin(6 * phase) +
+        0.022 * bowBright * Math.sin(7 * phase);
+
+      const rosinEnv = 0.16 + 0.84 * Math.exp(-t * 14);
+      const rosin = (rosinLow[i] * 0.13 + rosinHigh[i] * 0.08) * rosinEnv;
+
+      if (isRiz) {
+        bowed *= 0.68 + 0.32 * Math.abs(Math.sin(Math.PI * 10.5 * t));
+      } else if (isTahrir) {
+        bowed *= 0.84 + 0.16 * Math.sin(2 * Math.PI * 6.0 * t) * vibRamp;
+      }
+
+      output[i] = (bowed + rosin) * env * velocity * 0.74;
+    }
+
+    // Authentic Kamancheh mulberry bowl + stretched membrane formants
+    applyBiquadInPlace(output, sampleRate, 'highpass', 120, 0.707);
+    applyBiquadInPlace(output, sampleRate, 'peaking', 290, 1.5, 3.6);
+    applyBiquadInPlace(output, sampleRate, 'peaking', 1020, 1.9, 4.2);
+    applyBiquadInPlace(output, sampleRate, 'peaking', 2650, 1.6, 2.6);
+    applyBiquadInPlace(output, sampleRate, 'lowpass', 5400, 0.707);
+    applyStudioReflectionsInPlace(output, sampleRate, 0.25);
+
+    for (let i = 0; i < totalSamples; i++) {
+      output[i] = Math.tanh(output[i] * 1.12);
+    }
+    return output;
+  }
+
+  // =========================================================================
+  // 2. PLUCKED / HAMMERED PERSIAN STRING WAVEGUIDE (Tar, Setar, Santur, Oud, Tanbur)
   // =========================================================================
   // Frequency-adaptive decay so both bass and upper octave notes sustain naturally
   const freqFactor = Math.min(1, Math.max(0, (safeFreq - 120) / 800));
@@ -278,6 +370,28 @@ export function synthesizeKarplusStrongSamples(opts: KarplusSynthOptions): Float
           transientGain: 0.08,
           transientDecayHz: 240,
           roomWet: 0.24,
+        }
+      : instrument === 'oud'
+      ? {
+          // Oud / Barbat: deep fretless pear-shaped walnut body with warm double nylon/gut courses
+          decay: 0.9969 - freqFactor * 0.0016,
+          lpMix: 0.46,
+          pickPos: 0.34,
+          exciteSmooth: 0.34,
+          transientGain: 0.11,
+          transientDecayHz: 210,
+          roomWet: 0.26,
+        }
+      : instrument === 'tanbur'
+      ? {
+          // Tanbur: sacred Kurdish/Iranian long-necked lute with resonant twin unison courses
+          decay: 0.9972 - freqFactor * 0.0012,
+          lpMix: 0.27,
+          pickPos: 0.23,
+          exciteSmooth: 0.52,
+          transientGain: 0.14,
+          transientDecayHz: 290,
+          roomWet: 0.26,
         }
       : {
           // Santur: taut bronze/steel quadruple courses struck by felt-tipped wooden mallets
@@ -425,6 +539,34 @@ export function synthesizeKarplusStrongSamples(opts: KarplusSynthOptions): Float
     for (let i = 0; i < totalSamples; i++) {
       output[i] = mainStr[i] + sympUnison[i] + (sympOctave ? sympOctave[i] : 0);
     }
+  } else if (instrument === 'oud') {
+    // Oud / Barbat: rich warm double gut/nylon course (-0.8¢ / +0.8¢) with gentle risha (ریشه) brush
+    const spread = Math.pow(2, 0.8 / 1200);
+    const strA = buildPluckedVoice(safeFreq / spread, 41, 0.6);
+    const strB = buildPluckedVoice(safeFreq * spread, 137, 0.58);
+    for (let i = 0; i < totalSamples; i++) {
+      const t = i / sampleRate;
+      const rishaBrush =
+        t < 0.006
+          ? rand() * Math.exp(-t * params.transientDecayHz) * params.transientGain
+          : 0;
+      output[i] = strA[i] + strB[i] + rishaBrush;
+    }
+  } else if (instrument === 'tanbur') {
+    // Tanbur: sacred twin unison melody course (-1.05¢ / +1.05¢) + delicate resonant harmonic shimmer
+    const spread = Math.pow(2, 1.05 / 1200);
+    const strA = buildPluckedVoice(safeFreq / spread, 53, 0.56);
+    const strB = buildPluckedVoice(safeFreq * spread, 163, 0.54);
+    const sympOctave =
+      safeFreq < 720 ? buildPluckedVoice(safeFreq * 2, 239, 0.085) : null;
+    for (let i = 0; i < totalSamples; i++) {
+      const t = i / sampleRate;
+      const fingerStrum =
+        t < 0.0055
+          ? rand() * Math.exp(-t * params.transientDecayHz) * params.transientGain
+          : 0;
+      output[i] = strA[i] + strB[i] + (sympOctave ? sympOctave[i] : 0) + fingerStrum;
+    }
   } else {
     // Santur: balanced triple concert course (-0.9¢, 0.0¢, +0.9¢) + felt mallet knock
     const spread = Math.pow(2, 0.9 / 1200);
@@ -454,6 +596,20 @@ export function synthesizeKarplusStrongSamples(opts: KarplusSynthOptions): Float
     applyBiquadInPlace(output, sampleRate, 'peaking', 710, 1.7, 4.2);  // intimate lyrical mid
     applyBiquadInPlace(output, sampleRate, 'peaking', 1850, 1.5, 2.0); // fingernail shimmer
     applyBiquadInPlace(output, sampleRate, 'lowpass', 4500, 0.707);
+  } else if (instrument === 'oud') {
+    // Oud / Barbat: deep walnut pear-shell Helmholtz air mode + warm spruce top
+    applyBiquadInPlace(output, sampleRate, 'highpass', 62, 0.707);
+    applyBiquadInPlace(output, sampleRate, 'peaking', 150, 1.4, 4.8);  // deep Barbat body Helmholtz
+    applyBiquadInPlace(output, sampleRate, 'peaking', 430, 1.5, 3.8);  // velvety low-mid richness
+    applyBiquadInPlace(output, sampleRate, 'peaking', 1180, 1.6, 2.0); // wooden rose clarity
+    applyBiquadInPlace(output, sampleRate, 'lowpass', 3600, 0.707);
+  } else if (instrument === 'tanbur') {
+    // Tanbur: bright sacred mulberry gourd resonance with ringing harmonic bloom
+    applyBiquadInPlace(output, sampleRate, 'highpass', 90, 0.707);
+    applyBiquadInPlace(output, sampleRate, 'peaking', 260, 1.5, 3.4);
+    applyBiquadInPlace(output, sampleRate, 'peaking', 860, 1.8, 4.5);
+    applyBiquadInPlace(output, sampleRate, 'peaking', 2150, 1.5, 3.2);
+    applyBiquadInPlace(output, sampleRate, 'lowpass', 5600, 0.707);
   } else {
     // Santur trapezoidal walnut soundbox + metallic bronze shimmer
     applyBiquadInPlace(output, sampleRate, 'highpass', 90, 0.707);
@@ -508,6 +664,9 @@ export function playPersianNote(
     ornament?: OrnamentType;
     velocity?: number;
     startTimeOffsetSec?: number;
+    enableOrnaments?: boolean;
+    scale?: PersianNoteSpec[];
+    prevFreqHz?: number;
   }
 ): { stop: () => void; frequency: number } {
   const ctx = getAudioContext();
@@ -519,20 +678,28 @@ export function playPersianNote(
 
   const activeSources: AudioBufferSourceNode[] = [];
 
-  const scheduleVoice = (
-    voiceFreq: number,
-    dur: number,
-    when: number,
-    vel: number,
-    orn?: OrnamentType
-  ) => {
+  const events = expandNoteWithOrnaments({
+    baseFreqHz: freq,
+    durationSec,
+    instrument: options.instrument,
+    ornament: options.ornament,
+    velocity: options.velocity ?? 0.85,
+    enableOrnaments: options.enableOrnaments ?? true,
+    scale: options.scale,
+    a4Hz,
+    koronMode,
+    prevFreqHz: options.prevFreqHz,
+  });
+
+  for (const ev of events) {
     const samples = synthesizeKarplusStrongSamples({
-      frequency: voiceFreq,
+      frequency: ev.frequencyHz,
       sampleRate: ctx.sampleRate,
-      durationSec: dur,
+      durationSec: ev.durationSec,
       instrument: options.instrument,
-      ornament: orn,
-      velocity: vel,
+      ornament: ev.ornament,
+      velocity: ev.velocity,
+      slideFromHz: ev.slideFromHz,
     });
     const buffer = ctx.createBuffer(1, samples.length, ctx.sampleRate);
     buffer.copyToChannel(new Float32Array(samples), 0);
@@ -545,24 +712,8 @@ export function playPersianNote(
 
     src.connect(masterGain);
     masterGain.connect(ctx.destination);
-    src.start(when);
+    src.start(now + ev.offsetSec);
     activeSources.push(src);
-  };
-
-  // Authentic Iranian grace ornaments (Eshareh, Tekieh, Dorab)
-  if (options.ornament === 'eshareh') {
-    scheduleVoice(freq * Math.pow(2, 150 / 1200), 0.11, now, (options.velocity ?? 0.85) * 0.56);
-    scheduleVoice(freq, durationSec, now + 0.062, options.velocity ?? 0.85);
-  } else if (options.ornament === 'tekieh') {
-    scheduleVoice(freq, durationSec * 0.45, now, options.velocity ?? 0.85);
-    scheduleVoice(freq * Math.pow(2, 200 / 1200), 0.12, now + 0.088, (options.velocity ?? 0.85) * 0.68);
-    scheduleVoice(freq, durationSec * 0.7, now + 0.155, (options.velocity ?? 0.85) * 0.85);
-  } else if (options.ornament === 'dorab') {
-    scheduleVoice(freq * Math.pow(2, 200 / 1200), 0.12, now, 0.7);
-    scheduleVoice(freq, 0.14, now + 0.068, 0.8);
-    scheduleVoice(freq, durationSec, now + 0.136, options.velocity ?? 0.9);
-  } else {
-    scheduleVoice(freq, durationSec, now, options.velocity ?? 0.85, options.ornament);
   }
 
   return {
@@ -641,6 +792,8 @@ export function playGushehPhrase(
     startIndex: number;
     endIndex: number;
     loop: boolean;
+    enableOrnaments?: boolean;
+    scale?: PersianNoteSpec[];
     onNoteStart?: (noteIndex: number, note: MelodyNote) => void;
     onComplete?: () => void;
   }
@@ -668,6 +821,10 @@ export function playGushehPhrase(
 
     for (let idx = safeStart; idx <= safeEnd; idx++) {
       const note = melody[idx];
+      const prevNote = idx > safeStart ? melody[idx - 1] : undefined;
+      const prevFreqHz = prevNote
+        ? noteToFrequency(prevNote, options.a4Hz, options.koronMode)
+        : undefined;
       const durSec = Math.max(0.18, note.durationBeats * beatSec);
       const triggerAt = offsetMs;
 
@@ -680,6 +837,9 @@ export function playGushehPhrase(
           a4Hz: options.a4Hz,
           koronMode: options.koronMode,
           ornament: note.ornament,
+          enableOrnaments: options.enableOrnaments ?? true,
+          scale: options.scale,
+          prevFreqHz,
         });
         activeStoppers.push(handle.stop);
       }, triggerAt);

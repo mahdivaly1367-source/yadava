@@ -15,6 +15,8 @@
     "test:watch": "vitest --exclude src/rules/firestore.rules.test.ts",
     "test:rules": "firebase emulators:exec --config firebase.emulator.json --project demo-navanegar-rules --only firestore \"npx vitest run src/rules/firestore.rules.test.ts\"",
     "cap:sync": "npm run build && npx cap sync android",
+    "android:assets": "node scripts/generate-android-assets.mjs",
+    "release:check": "node scripts/check-release-readiness.mjs",
     "android:bazaar:debug": "cd android && ./gradlew assembleBazaarDebug",
     "android:myket:debug": "cd android && ./gradlew assembleMyketDebug",
     "android:bazaar:release": "cd android && ./gradlew assembleBazaarRelease bundleBazaarRelease",

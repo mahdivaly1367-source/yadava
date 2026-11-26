@@ -127,3 +127,18 @@ apksigner verify --verbose android/app/build/outputs/apk/myket/release/app-myket
 4. `NAVANEGAR_GOOGLE_SERVICES_JSON` (محتوای Base64 فایل `google-services.json`)
 5. `NAVANEGAR_BAZAAR_RSA_KEY`
 6. `NAVANEGAR_MYKET_RSA_KEY`
+
+---
+
+## ۹. آیکون اختصاصی ایرانی (Adaptive Icon)، صفحه خوش‌آمد و بررسی آمادگی انتشار
+
+آیکون‌های اختصاصی شمسه فیروزه‌ای-طلایی و علامت کرن نوانگار در تمامی چگالی‌های اندروید (`mdpi` تا `xxxhdpi` و `mipmap-anydpi-v26`) و صفحات خوش‌آمد عمودی و افقی (`drawable-*/splash.png`) به صورت خودکار تولید و جایگزین شده‌اند:
+
+```bash
+# بازتولید آیکون‌های اختصاصی و صفحات Splash اندروید
+npm run android:assets
+
+# بررسی آمادگی کلیدها، keystore و اسرار GitHub برای بیلد Release امضاشده
+npm run release:check
+```
+

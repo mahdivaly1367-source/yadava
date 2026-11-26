@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2,
   Footprints,
@@ -14,7 +14,9 @@ import {
   RotateCcw,
   Share2,
   Sliders,
+  Sparkles,
   Square,
+  Sun,
   Volume2,
   X,
 } from 'lucide-react';
@@ -33,21 +35,56 @@ import {
   playPersianNote,
   type PhrasePlaybackHandle,
 } from '../audio/karplusStrong';
-import { AudioSlowdownerPanel } from '../components/AudioSlowdownerPanel';
-import { BreathLongTonePanel } from '../components/BreathLongTonePanel';
 import { CentGauge } from '../components/CentGauge';
-import { DronePanel } from '../components/DronePanel';
-import { FFTVisualizerPanel } from '../components/FFTVisualizerPanel';
 import { InstrumentBridgeCanvas } from '../components/InstrumentBridgeCanvas';
-import { InstrumentTunerPanel } from '../components/InstrumentTunerPanel';
-import { MetronomePanel } from '../components/MetronomePanel';
 import { PersianStaffNotation } from '../components/PersianStaffNotation';
 import { PitchContourCanvas } from '../components/PitchContourCanvas';
-import { PoetryProsodyPanel } from '../components/PoetryProsodyPanel';
-import { RecorderPanel } from '../components/RecorderPanel';
-import { TemperamentEditorPanel } from '../components/TemperamentEditorPanel';
-import { TombakDafPanel } from '../components/TombakDafPanel';
-import { WebMidiPanel } from '../components/WebMidiPanel';
+
+const AudioSlowdownerPanel = lazy(() =>
+  import('../components/AudioSlowdownerPanel').then((m) => ({ default: m.AudioSlowdownerPanel }))
+);
+const BlindTuningPanel = lazy(() =>
+  import('../components/BlindTuningPanel').then((m) => ({ default: m.BlindTuningPanel }))
+);
+const BreathLongTonePanel = lazy(() =>
+  import('../components/BreathLongTonePanel').then((m) => ({ default: m.BreathLongTonePanel }))
+);
+const CallResponsePanel = lazy(() =>
+  import('../components/CallResponsePanel').then((m) => ({ default: m.CallResponsePanel }))
+);
+const DronePanel = lazy(() =>
+  import('../components/DronePanel').then((m) => ({ default: m.DronePanel }))
+);
+const FFTVisualizerPanel = lazy(() =>
+  import('../components/FFTVisualizerPanel').then((m) => ({ default: m.FFTVisualizerPanel }))
+);
+const InstrumentTunerPanel = lazy(() =>
+  import('../components/InstrumentTunerPanel').then((m) => ({ default: m.InstrumentTunerPanel }))
+);
+const MetronomePanel = lazy(() =>
+  import('../components/MetronomePanel').then((m) => ({ default: m.MetronomePanel }))
+);
+const MusicStandOverlay = lazy(() =>
+  import('../components/MusicStandOverlay').then((m) => ({ default: m.MusicStandOverlay }))
+);
+const PoetryProsodyPanel = lazy(() =>
+  import('../components/PoetryProsodyPanel').then((m) => ({ default: m.PoetryProsodyPanel }))
+);
+const ProsodyAvazPanel = lazy(() =>
+  import('../components/ProsodyAvazPanel').then((m) => ({ default: m.ProsodyAvazPanel }))
+);
+const RecorderPanel = lazy(() =>
+  import('../components/RecorderPanel').then((m) => ({ default: m.RecorderPanel }))
+);
+const TemperamentEditorPanel = lazy(() =>
+  import('../components/TemperamentEditorPanel').then((m) => ({ default: m.TemperamentEditorPanel }))
+);
+const TombakDafPanel = lazy(() =>
+  import('../components/TombakDafPanel').then((m) => ({ default: m.TombakDafPanel }))
+);
+const WebMidiPanel = lazy(() =>
+  import('../components/WebMidiPanel').then((m) => ({ default: m.WebMidiPanel }))
+);
 import {
   FOOT_PEDAL_PRESETS,
   PEDAL_ACTION_LABELS_FA,
@@ -89,6 +126,7 @@ import type {
   TeacherAssignment,
 } from '../types/music';
 import {
+  ALL_INSTRUMENT_IDS,
   INSTRUMENT_LABELS_FA,
   ORNAMENT_LABELS_FA,
   ROLE_BADGE_CLASSES,
@@ -140,6 +178,9 @@ const INITIAL_FRAME: PitchAnalysisFrame = {
 
 type StudioToolTab =
   | 'bridge'
+  | 'call_response'
+  | 'prosody_avaz'
+  | 'blind_tuning'
   | 'drone'
   | 'percussion'
   | 'poetry'
@@ -184,6 +225,9 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
   // Feature 8: Smart Tuning & Vocal Transposition (-12..+12 semitones)
   const [transposeSemitones, setTransposeSemitones] = useState<number>(0);
   const [transpositionPanelOpen, setTranspositionPanelOpen] = useState(false);
+  // Phase 3: Real Ornament Playback Engine & Landscape Music-Stand Mode (Wake Lock)
+  const [enableOrnaments, setEnableOrnaments] = useState<boolean>(true);
+  const [musicStandOpen, setMusicStandOpen] = useState<boolean>(false);
 
   const effectiveGusheh = useMemo(
     () => transposeGusheh(gusheh, transposeSemitones, koronMode),
@@ -534,6 +578,8 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
       startIndex: loopStart,
       endIndex: loopEnd,
       loop: loopEnabled,
+      enableOrnaments,
+      scale: effectiveGusheh.scale,
       onNoteStart: (idx) => setActiveNoteIndex(idx),
       onComplete: () => {
         setIsPlaying(false);
@@ -546,6 +592,8 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
     autoRecord,
     bpm,
     effectiveGusheh.melody,
+    effectiveGusheh.scale,
+    enableOrnaments,
     instrument,
     koronMode,
     loopEnabled,
@@ -1021,6 +1069,16 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
 
             <button
               type="button"
+              onClick={() => setMusicStandOpen(true)}
+              title="حالت پایه نت افقی با جلوگیری از خاموش شدن صفحه (Wake Lock)"
+              className="inline-flex items-center gap-1 rounded-xl border border-amber-500/40 bg-amber-500/15 px-2.5 py-2 text-xs font-bold text-amber-700 hover:bg-amber-500/25 dark:text-amber-300"
+            >
+              <Sun className="h-4 w-4" />
+              <span className="hidden lg:inline">پایه نت</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setFullscreen((v) => !v)}
               title="حالت تمرین تمام‌صفحه (کلید F)"
               className="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-slate-100 px-2.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
@@ -1031,13 +1089,13 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
           </div>
         </div>
 
-        {/* Reference Instrument Selector + Transport + Wait Mode + Repeat (R) + Mic DSP */}
+        {/* Reference Instrument Selector (All 7 Persian Instruments) + Transport + Ornaments + Mic DSP */}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/80 pt-3 dark:border-slate-800">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="ml-1 text-xs font-bold text-slate-500 dark:text-slate-400">
               ساز مرجع:
             </span>
-            {(['tar', 'setar', 'santur', 'ney'] as InstrumentId[]).map((inst) => (
+            {ALL_INSTRUMENT_IDS.map((inst) => (
               <button
                 key={inst}
                 type="button"
@@ -1048,9 +1106,10 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
                     durationSec: 0.85,
                     a4Hz,
                     koronMode,
+                    scale: effectiveGusheh.scale,
                   });
                 }}
-                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                className={`rounded-xl px-2.5 py-1.5 text-xs font-bold transition ${
                   instrument === inst
                     ? 'bg-teal-600 text-white shadow-sm'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
@@ -1084,6 +1143,20 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
             >
               <Repeat className="h-3.5 w-3.5" />
               حلقه
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setEnableOrnaments((v) => !v)}
+              title="اجرای واقعی ریز، اشاره، تکیه، دراب، تحریر و مالش هنگام پخش نمونه گوشه"
+              className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-2 text-xs font-bold transition ${
+                enableOrnaments
+                  ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                  : 'border-slate-300 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
+              }`}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              زینت زنده
             </button>
 
             {/* Feature 4: Wait Mode ("صبر کن تا درست بنوازی") */}
@@ -1476,14 +1549,17 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
         activeNoteIndex={activeNoteIndex}
       />
 
-      {/* Modular Studio Workbench Tabs (All Classic + Phase 1 & Phase 2 Pro Tools) */}
+      {/* Modular Studio Workbench Tabs (Classic + Phase 1, 2 & 3 Master Conservatory Tools) */}
       <div className="flex flex-wrap gap-1.5 rounded-2xl border border-slate-200/80 bg-white/85 p-1.5 dark:border-slate-800 dark:bg-slate-900/85">
         {(
           [
-            { id: 'bridge', labelFa: 'پل بصری ساز' },
+            { id: 'bridge', labelFa: 'پل بصری و انگشت‌گذاری' },
+            { id: 'call_response', labelFa: 'سؤال و جواب (بداهه)' },
+            { id: 'prosody_avaz', labelFa: 'آواز و تقطیع عروضی' },
+            { id: 'blind_tuning', labelFa: 'کوک با گوش' },
             { id: 'drone', labelFa: 'واخوان (Drone)' },
             { id: 'percussion', labelFa: 'تنبک و دف' },
-            { id: 'poetry', labelFa: 'شعر، عروض و روایت‌ها' },
+            { id: 'poetry', labelFa: 'شعر و روایت‌ها' },
             { id: 'slowdowner', labelFa: 'آهسته‌ساز و نت‌نگار' },
             { id: 'temperament', labelFa: 'کوک و ربع‌پرده' },
             { id: 'breath', labelFa: 'نفس و تحریر' },
@@ -1519,123 +1595,193 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
         />
       )}
 
-      {activeToolTab === 'drone' && (
-        <DronePanel gusheh={effectiveGusheh} a4Hz={a4Hz} koronMode={koronMode} />
-      )}
+      <Suspense
+        fallback={
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 text-center text-xs text-slate-400">
+            در حال بارگذاری ابزار تخصصی استودیو...
+          </div>
+        }
+      >
+        {activeToolTab === 'call_response' && (
+          <CallResponsePanel
+            gusheh={effectiveGusheh}
+            instrument={instrument}
+            a4Hz={a4Hz}
+            koronMode={koronMode}
+          />
+        )}
 
-      {activeToolTab === 'percussion' && (
-        <TombakDafPanel ownerUid={ownerUid} initialBpm={bpm} />
-      )}
+        {activeToolTab === 'prosody_avaz' && (
+          <ProsodyAvazPanel
+            gusheh={effectiveGusheh}
+            instrument={instrument}
+            a4Hz={a4Hz}
+            koronMode={koronMode}
+          />
+        )}
 
-      {activeToolTab === 'poetry' && (
-        <PoetryProsodyPanel
-          gusheh={effectiveGusheh}
-          activeNoteIndex={activeNoteIndex}
-          traditionId={traditionId}
-          onChangeTradition={onChangeTradition}
-        />
-      )}
+        {activeToolTab === 'blind_tuning' && (
+          <BlindTuningPanel
+            instrument={instrument}
+            dastgahId={effectiveGusheh.dastgahId}
+            a4Hz={a4Hz}
+            koronMode={koronMode}
+          />
+        )}
 
-      {activeToolTab === 'slowdowner' && (
-        <AudioSlowdownerPanel
-          gusheh={effectiveGusheh}
-          instrument={instrument}
-          a4Hz={a4Hz}
-          koronMode={koronMode}
-        />
-      )}
+        {activeToolTab === 'drone' && (
+          <DronePanel gusheh={effectiveGusheh} a4Hz={a4Hz} koronMode={koronMode} />
+        )}
 
-      {activeToolTab === 'temperament' && (
-        <TemperamentEditorPanel
-          ownerUid={ownerUid}
-          gusheh={effectiveGusheh}
-          instrument={instrument}
-          a4Hz={a4Hz}
-        />
-      )}
+        {activeToolTab === 'percussion' && (
+          <TombakDafPanel ownerUid={ownerUid} initialBpm={bpm} />
+        )}
 
-      {activeToolTab === 'breath' && (
-        <BreathLongTonePanel
-          micActive={micActive}
-          liveRms={pitchFrame.rms}
-          liveTahrirRateHz={pitchFrame.tahrirRateHz}
-          bestBreathSeconds={bestBreathSeconds}
-          onNewBestBreath={onNewBestBreath}
-        />
-      )}
+        {activeToolTab === 'poetry' && (
+          <PoetryProsodyPanel
+            gusheh={effectiveGusheh}
+            activeNoteIndex={activeNoteIndex}
+            traditionId={traditionId}
+            onChangeTradition={onChangeTradition}
+          />
+        )}
 
-      {activeToolTab === 'tuner' && (
-        <InstrumentTunerPanel
-          dastgahId={effectiveGusheh.dastgahId}
-          instrument={instrument}
-          a4Hz={a4Hz}
-          koronMode={koronMode}
-          micActive={micActive}
-          onToggleMic={toggleMic}
-          pitchFrame={pitchFrame}
-        />
-      )}
+        {activeToolTab === 'slowdowner' && (
+          <AudioSlowdownerPanel
+            gusheh={effectiveGusheh}
+            instrument={instrument}
+            a4Hz={a4Hz}
+            koronMode={koronMode}
+          />
+        )}
 
-      {activeToolTab === 'metronome' && (
-        <MetronomePanel
-          meter={meter}
-          bpm={bpm}
-          onChangeMeter={setMeter}
-          onChangeBpm={setBpm}
-        />
-      )}
+        {activeToolTab === 'temperament' && (
+          <TemperamentEditorPanel
+            ownerUid={ownerUid}
+            gusheh={effectiveGusheh}
+            instrument={instrument}
+            a4Hz={a4Hz}
+          />
+        )}
 
-      {activeToolTab === 'midi' && (
-        <WebMidiPanel
-          gusheh={effectiveGusheh}
-          instrument={instrument}
-          a4Hz={a4Hz}
-          koronMode={koronMode}
-          onMidiPitchDetected={handleMidiPitchDetected}
-        />
-      )}
+        {activeToolTab === 'breath' && (
+          <BreathLongTonePanel
+            micActive={micActive}
+            liveRms={pitchFrame.rms}
+            liveTahrirRateHz={pitchFrame.tahrirRateHz}
+            bestBreathSeconds={bestBreathSeconds}
+            onNewBestBreath={onNewBestBreath}
+          />
+        )}
 
-      {activeToolTab === 'fft' && (
-        <FFTVisualizerPanel
-          isPro={isPro}
-          onRequestUpgrade={onRequestUpgrade}
-          micActive={micActive}
-          fftDataDb={fftDataDb}
-          sampleRate={sampleRate}
-          fftSize={4096}
-          fundamentalHz={pitchFrame.frequency}
-          harmonics={harmonics}
-          filterMode={filterMode}
-          filterCutoffHz={filterCutoffHz}
-          onChangeFilterMode={setFilterMode}
-          onChangeFilterCutoff={setFilterCutoffHz}
-          a4Hz={a4Hz}
-          onChangeA4Hz={onChangeA4Hz}
-          koronMode={koronMode}
-          onChangeKoronMode={onChangeKoronMode}
-        />
-      )}
+        {activeToolTab === 'tuner' && (
+          <InstrumentTunerPanel
+            dastgahId={effectiveGusheh.dastgahId}
+            instrument={instrument}
+            a4Hz={a4Hz}
+            koronMode={koronMode}
+            micActive={micActive}
+            onToggleMic={toggleMic}
+            pitchFrame={pitchFrame}
+          />
+        )}
 
-      {activeToolTab === 'recorder' && (
-        <RecorderPanel
-          ownerUid={ownerUid}
-          ownerName={ownerName}
-          gusheh={effectiveGusheh}
-          instrument={instrument}
-          a4Hz={a4Hz}
-          koronMode={koronMode}
-          isPro={isPro}
-          recordings={recordings}
-          autoRecord={autoRecord}
-          onToggleAutoRecord={setAutoRecord}
-          externalTriggerState={recorderTrigger}
-          objectUrlRegistry={objectUrlRegistry}
-          onSaveRecording={onSaveRecording}
-          onToggleRecordingPublic={onToggleRecordingPublic}
-          onDeleteRecording={onDeleteRecording}
-          onRequestUpgrade={onRequestUpgrade}
-        />
-      )}
+        {activeToolTab === 'metronome' && (
+          <MetronomePanel
+            meter={meter}
+            bpm={bpm}
+            onChangeMeter={setMeter}
+            onChangeBpm={setBpm}
+          />
+        )}
+
+        {activeToolTab === 'midi' && (
+          <WebMidiPanel
+            gusheh={effectiveGusheh}
+            instrument={instrument}
+            a4Hz={a4Hz}
+            koronMode={koronMode}
+            onMidiPitchDetected={handleMidiPitchDetected}
+          />
+        )}
+
+        {activeToolTab === 'fft' && (
+          <FFTVisualizerPanel
+            isPro={isPro}
+            onRequestUpgrade={onRequestUpgrade}
+            micActive={micActive}
+            fftDataDb={fftDataDb}
+            sampleRate={sampleRate}
+            fftSize={4096}
+            fundamentalHz={pitchFrame.frequency}
+            harmonics={harmonics}
+            filterMode={filterMode}
+            filterCutoffHz={filterCutoffHz}
+            onChangeFilterMode={setFilterMode}
+            onChangeFilterCutoff={setFilterCutoffHz}
+            a4Hz={a4Hz}
+            onChangeA4Hz={onChangeA4Hz}
+            koronMode={koronMode}
+            onChangeKoronMode={onChangeKoronMode}
+          />
+        )}
+
+        {activeToolTab === 'recorder' && (
+          <RecorderPanel
+            ownerUid={ownerUid}
+            ownerName={ownerName}
+            gusheh={effectiveGusheh}
+            instrument={instrument}
+            a4Hz={a4Hz}
+            koronMode={koronMode}
+            isPro={isPro}
+            recordings={recordings}
+            autoRecord={autoRecord}
+            onToggleAutoRecord={setAutoRecord}
+            externalTriggerState={recorderTrigger}
+            objectUrlRegistry={objectUrlRegistry}
+            onSaveRecording={onSaveRecording}
+            onToggleRecordingPublic={onToggleRecordingPublic}
+            onDeleteRecording={onDeleteRecording}
+            onRequestUpgrade={onRequestUpgrade}
+          />
+        )}
+
+        {musicStandOpen && (
+          <MusicStandOverlay
+            open={musicStandOpen}
+            onClose={() => setMusicStandOpen(false)}
+            gusheh={effectiveGusheh}
+            instrument={instrument}
+            a4Hz={a4Hz}
+            koronMode={koronMode}
+            bpm={bpm}
+            speedMultiplier={speedMultiplier}
+            isPlaying={isPlaying}
+            loopEnabled={loopEnabled}
+            enableOrnaments={enableOrnaments}
+            activeNoteIdx={activeNoteIndex}
+            livePitch={pitchFrame}
+            onTogglePlay={isPlaying ? stopPhrase : startPhrase}
+            onToggleLoop={() => setLoopEnabled((v) => !v)}
+            onToggleOrnaments={() => setEnableOrnaments((v) => !v)}
+            onSelectNote={(idx) => {
+              const target = effectiveGusheh.melody[idx];
+              if (!target) return;
+              setActiveNoteIndex(idx);
+              playPersianNote(target, {
+                instrument,
+                durationSec: 0.85,
+                a4Hz,
+                koronMode,
+                ornament: target.ornament,
+                enableOrnaments,
+                scale: effectiveGusheh.scale,
+              });
+            }}
+          />
+        )}
+      </Suspense>
     </div>
   );
 };

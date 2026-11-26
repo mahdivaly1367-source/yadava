@@ -21,7 +21,11 @@ import type {
   RadifTraditionId,
   TeacherAssignment,
 } from '../types/music';
-import { INSTRUMENT_LABELS_FA, toPersianDigits } from '../utils/persian';
+import {
+  ALL_INSTRUMENT_IDS,
+  INSTRUMENT_LABELS_FA,
+  toPersianDigits,
+} from '../utils/persian';
 
 interface TeacherAssignmentModalProps {
   open: boolean;
@@ -229,7 +233,7 @@ export const TeacherAssignmentModal: React.FC<TeacherAssignmentModalProps> = ({
                   onChange={(e) => setSelectedInst(e.target.value as InstrumentId)}
                   className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 px-2 py-2 dark:border-slate-700 dark:bg-slate-800"
                 >
-                  {(['tar', 'setar', 'santur', 'ney'] as InstrumentId[]).map((inst) => (
+                  {ALL_INSTRUMENT_IDS.map((inst) => (
                     <option key={inst} value={inst}>
                       {INSTRUMENT_LABELS_FA[inst]}
                     </option>

@@ -17,6 +17,7 @@ import type {
   KoronMode,
   PersianNoteSpec,
 } from '../types/music';
+import { buildMelodyFingeringGuide } from '../core/fingeringGuide';
 import { toPersianDigits } from '../utils/persian';
 
 interface InstrumentBridgeCanvasProps {
@@ -41,6 +42,8 @@ export const InstrumentBridgeCanvas: React.FC<InstrumentBridgeCanvasProps> = ({
       ? 'santur'
       : instrument === 'ney'
       ? 'ney'
+      : instrument === 'kamancheh'
+      ? 'kamancheh'
       : 'tar_setar'
   );
   const [lastClickedLabel, setLastClickedLabel] = useState<string>('');
@@ -49,8 +52,14 @@ export const InstrumentBridgeCanvas: React.FC<InstrumentBridgeCanvasProps> = ({
   useEffect(() => {
     if (instrument === 'santur') setViewInstrument('santur');
     else if (instrument === 'ney') setViewInstrument('ney');
-    else if (instrument === 'tar' || instrument === 'setar') setViewInstrument('tar_setar');
+    else if (instrument === 'kamancheh') setViewInstrument('kamancheh');
+    else setViewInstrument('tar_setar');
   }, [instrument]);
+
+  const fingeringGuide = useMemo(
+    () => buildMelodyFingeringGuide(gusheh.melody, a4Hz, koronMode),
+    [gusheh.melody, a4Hz, koronMode]
+  );
 
   const fretCents = useMemo(() => getTar24FretCents(koronMode), [koronMode]);
   const tuning = useMemo(
@@ -332,12 +341,70 @@ export const InstrumentBridgeCanvas: React.FC<InstrumentBridgeCanvasProps> = ({
       </div>
 
       {viewInstrument === 'tar_setar' ? (
-        <div className="overflow-x-auto" dir="ltr">
-          <canvas
-            ref={canvasRef}
-            onClick={handleCanvasClick}
-            className="h-[196px] w-full min-w-[640px] cursor-pointer rounded-xl bg-slate-950/95"
-          />
+        <div className="space-y-3">
+          <div className="overflow-x-auto" dir="ltr">
+            <canvas
+              ref={canvasRef}
+              onClick={handleCanvasClick}
+              className="h-[196px] w-full min-w-[640px] cursor-pointer rounded-xl bg-slate-950/95"
+            />
+          </div>
+
+          {/* Ergonomic Tar / Setar Fingering & String-Course Advisor Strip */}
+          <div className="rounded-xl border border-slate-200/70 bg-slate-50/80 p-2.5 dark:border-slate-800 dark:bg-slate-900/70">
+            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+              <span className="font-bold text-slate-700 dark:text-slate-200">
+                راهنمای پیشنهادی انگشت‌گذاری و انتخاب سیم (تار / سه‌تار)
+              </span>
+              <span className="text-slate-500 dark:text-slate-400">
+                ۰: دست‌باز • ۱: اشاره • ۲: میانی • ۳: انگشتری • ش: اوج/شست
+              </span>
+            </div>
+            <div className="flex gap-1.5 overflow-x-auto pb-1">
+              {fingeringGuide.slice(0, 14).map((item, idx) => {
+                const isAct =
+                  activeNote !== null &&
+                  isSamePitchClass(item.note, activeNote) &&
+                  item.note.octave === activeNote.octave;
+                return (
+                  <button
+                    key={`${item.noteLabelFa}_${idx}`}
+                    type="button"
+                    onClick={() => {
+                      playPersianNote(item.note, {
+                        instrument: instrument === 'setar' ? 'setar' : 'tar',
+                        durationSec: 0.85,
+                        a4Hz,
+                        koronMode,
+                      });
+                      setLastClickedLabel(
+                        `${item.noteLabelFa} ← ${item.courseLabelFa} • پرده ${toPersianDigits(
+                          item.fretIndex
+                        )} • ${item.fingerLabelFa}`
+                      );
+                    }}
+                    className={`shrink-0 rounded-lg border px-2 py-1 text-center text-[10px] transition cursor-pointer ${
+                      isAct
+                        ? 'border-teal-400 bg-teal-500 text-slate-950 font-extrabold shadow'
+                        : 'border-slate-300 bg-white text-slate-700 hover:border-teal-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200'
+                    }`}
+                  >
+                    <div className="font-bold">{item.noteLabelFa}</div>
+                    <div className="text-amber-600 dark:text-amber-300 font-bold">
+                      انگشت {item.fingerCode} • پ{toPersianDigits(item.fretIndex)}
+                    </div>
+                    <div className="opacity-75">
+                      {item.courseId === 'sefid'
+                        ? 'سیم سفید'
+                        : item.courseId === 'zard'
+                        ? 'سیم زرد'
+                        : 'سیم بم'}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       ) : viewInstrument === 'kamancheh' ? (
         <div className="space-y-2 rounded-xl bg-gradient-to-b from-slate-900 to-stone-950 p-3.5 text-white">

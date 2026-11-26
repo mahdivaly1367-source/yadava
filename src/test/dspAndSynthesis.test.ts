@@ -98,8 +98,16 @@ describe('Deterministic DSP Engine (YIN, Octave Filter, Tahrir ~6Hz, Foroud, Har
 });
 
 describe('Karplus-Strong Physical Modeling Synthesis, Metronome & Recording Analyzer', () => {
-  it('synthesizes clean finite waveforms for all 4 Persian instruments (Tar, Setar, Santur, Ney)', () => {
-    const instruments: InstrumentId[] = ['tar', 'setar', 'santur', 'ney'];
+  it('synthesizes clean finite waveforms for all 7 Persian instruments (Tar, Setar, Santur, Ney, Kamancheh, Oud, Tanbur)', () => {
+    const instruments: InstrumentId[] = [
+      'tar',
+      'setar',
+      'santur',
+      'ney',
+      'kamancheh',
+      'oud',
+      'tanbur',
+    ];
     const sr = 22050;
     const targetHz = 392.0; // G4
 
@@ -122,8 +130,16 @@ describe('Karplus-Strong Physical Modeling Synthesis, Metronome & Recording Anal
     }
   });
 
-  it('maintains sub-2-cent pitch accuracy with zero octave jumps across Tar, Setar, Santur, and Ney (including Koron)', () => {
-    const instruments: InstrumentId[] = ['tar', 'setar', 'santur', 'ney'];
+  it('maintains sub-2-cent pitch accuracy with zero octave jumps across all 7 Persian instruments (including Koron)', () => {
+    const instruments: InstrumentId[] = [
+      'tar',
+      'setar',
+      'santur',
+      'ney',
+      'kamancheh',
+      'oud',
+      'tanbur',
+    ];
     const sr = 44100;
     const notes = [
       { letter: 'D' as const, accidental: 'natural' as const, octave: 3 },

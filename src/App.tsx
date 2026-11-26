@@ -1,11 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { AudioGlossaryModal } from './components/AudioGlossaryModal';
-import { AuthModal } from './components/AuthModal';
-import { ExportShareModal } from './components/ExportShareModal';
 import { Header } from './components/Header';
-import { PaywallModal } from './components/PaywallModal';
-import { TeacherAssignmentModal } from './components/TeacherAssignmentModal';
 import { decodeAssignmentInput } from './core/assignments';
 import { computeStreakWithFreeze } from './core/challenges';
 import {
@@ -53,11 +48,35 @@ import type {
   UserLearningState,
 } from './types/music';
 import { toIsoDateKey } from './utils/jalali';
-import { CommunityView } from './views/CommunityView';
 import { DashboardView } from './views/DashboardView';
-import { ModulationMapView } from './views/ModulationMapView';
-import { PracticeStudioView } from './views/PracticeStudioView';
-import { RadifExplorerView } from './views/RadifExplorerView';
+
+const AudioGlossaryModal = lazy(() =>
+  import('./components/AudioGlossaryModal').then((m) => ({ default: m.AudioGlossaryModal }))
+);
+const AuthModal = lazy(() =>
+  import('./components/AuthModal').then((m) => ({ default: m.AuthModal }))
+);
+const ExportShareModal = lazy(() =>
+  import('./components/ExportShareModal').then((m) => ({ default: m.ExportShareModal }))
+);
+const PaywallModal = lazy(() =>
+  import('./components/PaywallModal').then((m) => ({ default: m.PaywallModal }))
+);
+const TeacherAssignmentModal = lazy(() =>
+  import('./components/TeacherAssignmentModal').then((m) => ({ default: m.TeacherAssignmentModal }))
+);
+const CommunityView = lazy(() =>
+  import('./views/CommunityView').then((m) => ({ default: m.CommunityView }))
+);
+const ModulationMapView = lazy(() =>
+  import('./views/ModulationMapView').then((m) => ({ default: m.ModulationMapView }))
+);
+const PracticeStudioView = lazy(() =>
+  import('./views/PracticeStudioView').then((m) => ({ default: m.PracticeStudioView }))
+);
+const RadifExplorerView = lazy(() =>
+  import('./views/RadifExplorerView').then((m) => ({ default: m.RadifExplorerView }))
+);
 
 const THEME_STORAGE_KEY = 'navanegar_theme';
 
@@ -506,142 +525,162 @@ export function App() {
       />
 
       <main className="mx-auto max-w-7xl px-4 py-5">
-        {activeTab === 'dashboard' && (
-          <DashboardView
-            userState={userState}
-            isPro={entitlement.isPro}
-            instrument={instrument}
-            a4Hz={a4Hz}
-            koronMode={koronMode}
-            onStartGushehPractice={handleStartGushehPractice}
-            onToggleDailyStep={handleToggleDailyStep}
-            onCompletePlacement={handleCompletePlacement}
-            onRecordEarAnswer={handleRecordEarAnswer}
-            onActivateStreakFreeze={handleActivateStreakFreeze}
-            onTogglePathStep={handleTogglePathStep}
-            onOpenTeacherModal={() => setTeacherModalOpen(true)}
-            onOpenExportModal={() => setExportModalOpen(true)}
-            onOpenExplorer={() => setActiveTab('explorer')}
-            onRequestUpgrade={() => setPaywallOpen(true)}
-          />
-        )}
+        <Suspense
+          fallback={
+            <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-10 text-center text-sm font-semibold text-slate-600 dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-300">
+              در حال آماده‌سازی استودیوی نوانگار...
+            </div>
+          }
+        >
+          {activeTab === 'dashboard' && (
+            <DashboardView
+              userState={userState}
+              isPro={entitlement.isPro}
+              instrument={instrument}
+              a4Hz={a4Hz}
+              koronMode={koronMode}
+              onStartGushehPractice={handleStartGushehPractice}
+              onToggleDailyStep={handleToggleDailyStep}
+              onCompletePlacement={handleCompletePlacement}
+              onRecordEarAnswer={handleRecordEarAnswer}
+              onActivateStreakFreeze={handleActivateStreakFreeze}
+              onTogglePathStep={handleTogglePathStep}
+              onOpenTeacherModal={() => setTeacherModalOpen(true)}
+              onOpenExportModal={() => setExportModalOpen(true)}
+              onOpenExplorer={() => setActiveTab('explorer')}
+              onRequestUpgrade={() => setPaywallOpen(true)}
+            />
+          )}
 
-        {activeTab === 'studio' && (
-          <PracticeStudioView
-            ownerUid={ownerUid}
-            ownerName={userState.displayName}
-            gusheh={activeGusheh}
-            onSelectGusheh={(id) => handleStartGushehPractice(id)}
-            instrument={instrument}
-            onChangeInstrument={setInstrument}
-            a4Hz={a4Hz}
-            onChangeA4Hz={setA4Hz}
-            koronMode={koronMode}
-            onChangeKoronMode={setKoronMode}
-            traditionId={traditionId}
-            onChangeTradition={setTraditionId}
-            activeAssignment={activeAssignment}
-            onClearAssignment={() => setActiveAssignment(null)}
-            onOpenExportModal={() => setExportModalOpen(true)}
-            onOpenTeacherModal={() => setTeacherModalOpen(true)}
-            isPro={entitlement.isPro}
-            bestBreathSeconds={userState.bestBreathSeconds ?? 0}
-            onNewBestBreath={handleNewBestBreath}
-            recordings={userState.recordings}
-            objectUrlRegistry={lifecycle.objectUrls}
-            initialSubPanel={studioSubPanel}
-            onSaveSession={handleSavePracticeSession}
-            onSaveRecording={handleSaveRecording}
-            onToggleRecordingPublic={handleToggleRecordingPublic}
-            onDeleteRecording={handleDeleteRecording}
-            onRequestUpgrade={() => setPaywallOpen(true)}
-          />
-        )}
+          {activeTab === 'studio' && (
+            <PracticeStudioView
+              ownerUid={ownerUid}
+              ownerName={userState.displayName}
+              gusheh={activeGusheh}
+              onSelectGusheh={(id) => handleStartGushehPractice(id)}
+              instrument={instrument}
+              onChangeInstrument={setInstrument}
+              a4Hz={a4Hz}
+              onChangeA4Hz={setA4Hz}
+              koronMode={koronMode}
+              onChangeKoronMode={setKoronMode}
+              traditionId={traditionId}
+              onChangeTradition={setTraditionId}
+              activeAssignment={activeAssignment}
+              onClearAssignment={() => setActiveAssignment(null)}
+              onOpenExportModal={() => setExportModalOpen(true)}
+              onOpenTeacherModal={() => setTeacherModalOpen(true)}
+              isPro={entitlement.isPro}
+              bestBreathSeconds={userState.bestBreathSeconds ?? 0}
+              onNewBestBreath={handleNewBestBreath}
+              recordings={userState.recordings}
+              objectUrlRegistry={lifecycle.objectUrls}
+              initialSubPanel={studioSubPanel}
+              onSaveSession={handleSavePracticeSession}
+              onSaveRecording={handleSaveRecording}
+              onToggleRecordingPublic={handleToggleRecordingPublic}
+              onDeleteRecording={handleDeleteRecording}
+              onRequestUpgrade={() => setPaywallOpen(true)}
+            />
+          )}
 
-        {activeTab === 'explorer' && (
-          <RadifExplorerView
-            isPro={entitlement.isPro}
-            instrument={instrument}
-            a4Hz={a4Hz}
-            koronMode={koronMode}
-            activeGushehId={activeGusheh.id}
-            traditionId={traditionId}
-            onChangeTradition={setTraditionId}
-            onPracticeGusheh={(id) => handleStartGushehPractice(id, 'dsp')}
-            onRequestUpgrade={() => setPaywallOpen(true)}
-          />
-        )}
+          {activeTab === 'explorer' && (
+            <RadifExplorerView
+              isPro={entitlement.isPro}
+              instrument={instrument}
+              a4Hz={a4Hz}
+              koronMode={koronMode}
+              activeGushehId={activeGusheh.id}
+              traditionId={traditionId}
+              onChangeTradition={setTraditionId}
+              onPracticeGusheh={(id) => handleStartGushehPractice(id, 'dsp')}
+              onRequestUpgrade={() => setPaywallOpen(true)}
+            />
+          )}
 
-        {activeTab === 'modulation' && (
-          <ModulationMapView
-            isPro={entitlement.isPro}
-            instrument={instrument}
-            a4Hz={a4Hz}
-            koronMode={koronMode}
-            onPracticeGusheh={(id) => handleStartGushehPractice(id, 'dsp')}
-            onRequestUpgrade={() => setPaywallOpen(true)}
-          />
-        )}
+          {activeTab === 'modulation' && (
+            <ModulationMapView
+              isPro={entitlement.isPro}
+              instrument={instrument}
+              a4Hz={a4Hz}
+              koronMode={koronMode}
+              onPracticeGusheh={(id) => handleStartGushehPractice(id, 'dsp')}
+              onRequestUpgrade={() => setPaywallOpen(true)}
+            />
+          )}
 
-        {activeTab === 'community' && (
-          <CommunityView
-            ownerUid={ownerUid}
-            displayName={userState.displayName}
-            a4Hz={a4Hz}
-            koronMode={koronMode}
-            localPublicRecordings={userState.recordings.filter((r) => r.isPublic)}
-            onOpenAuth={() => setAuthModalOpen(true)}
-            onPracticeGusheh={(id) => handleStartGushehPractice(id, 'dsp')}
-          />
-        )}
+          {activeTab === 'community' && (
+            <CommunityView
+              ownerUid={ownerUid}
+              displayName={userState.displayName}
+              a4Hz={a4Hz}
+              koronMode={koronMode}
+              localPublicRecordings={userState.recordings.filter((r) => r.isPublic)}
+              onOpenAuth={() => setAuthModalOpen(true)}
+              onPracticeGusheh={(id) => handleStartGushehPractice(id, 'dsp')}
+            />
+          )}
+        </Suspense>
       </main>
 
-      <PaywallModal
-        open={paywallOpen}
-        onClose={() => setPaywallOpen(false)}
-        entitlement={entitlement}
-        onPurchase={handlePurchase}
-        onRestore={handleRestore}
-        onResetWebPreview={handleResetWebPreview}
-      />
+      <Suspense fallback={null}>
+        {paywallOpen && (
+          <PaywallModal
+            open={paywallOpen}
+            onClose={() => setPaywallOpen(false)}
+            entitlement={entitlement}
+            onPurchase={handlePurchase}
+            onRestore={handleRestore}
+            onResetWebPreview={handleResetWebPreview}
+          />
+        )}
 
-      <AuthModal
-        open={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-        ownerUid={ownerUid}
-        displayName={userState.displayName}
-        onGoogleSignIn={handleGoogleSignIn}
-        onSwitchLocalProfile={(uid, name) => transitionOwnerSession(uid, name)}
-        onSignOut={handleSignOut}
-      />
+        {authModalOpen && (
+          <AuthModal
+            open={authModalOpen}
+            onClose={() => setAuthModalOpen(false)}
+            ownerUid={ownerUid}
+            displayName={userState.displayName}
+            onGoogleSignIn={handleGoogleSignIn}
+            onSwitchLocalProfile={(uid, name) => transitionOwnerSession(uid, name)}
+            onSignOut={handleSignOut}
+          />
+        )}
 
-      <ExportShareModal
-        open={exportModalOpen}
-        onClose={() => setExportModalOpen(false)}
-        gusheh={activeGusheh}
-        instrument={instrument}
-        a4Hz={a4Hz}
-        koronMode={koronMode}
-        userState={userState}
-        onImportBackupState={handleImportBackupState}
-      />
+        {exportModalOpen && (
+          <ExportShareModal
+            open={exportModalOpen}
+            onClose={() => setExportModalOpen(false)}
+            gusheh={activeGusheh}
+            instrument={instrument}
+            a4Hz={a4Hz}
+            koronMode={koronMode}
+            userState={userState}
+            onImportBackupState={handleImportBackupState}
+          />
+        )}
 
-      <AudioGlossaryModal
-        open={glossaryOpen}
-        onClose={() => setGlossaryOpen(false)}
-        instrument={instrument}
-        a4Hz={a4Hz}
-        koronMode={koronMode}
-      />
+        {glossaryOpen && (
+          <AudioGlossaryModal
+            open={glossaryOpen}
+            onClose={() => setGlossaryOpen(false)}
+            instrument={instrument}
+            a4Hz={a4Hz}
+            koronMode={koronMode}
+          />
+        )}
 
-      <TeacherAssignmentModal
-        open={teacherModalOpen}
-        onClose={() => setTeacherModalOpen(false)}
-        activeGusheh={activeGusheh}
-        instrument={instrument}
-        koronMode={koronMode}
-        onLoadAssignment={handleLoadTeacherAssignment}
-      />
+        {teacherModalOpen && (
+          <TeacherAssignmentModal
+            open={teacherModalOpen}
+            onClose={() => setTeacherModalOpen(false)}
+            activeGusheh={activeGusheh}
+            instrument={instrument}
+            koronMode={koronMode}
+            onLoadAssignment={handleLoadTeacherAssignment}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }

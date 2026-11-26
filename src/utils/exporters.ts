@@ -1,4 +1,5 @@
 import { synthesizeKarplusStrongSamples } from '../audio/karplusStrong';
+import { expandNoteWithOrnaments } from '../audio/ornamentEngine';
 import {
   formatNoteFa,
   getAccidentalCents,
@@ -12,6 +13,8 @@ import type {
   Gusheh,
   InstrumentId,
   KoronMode,
+  MelodyNote,
+  PersianNoteSpec,
   UserLearningState,
 } from '../types/music';
 import { formatJalaliFullFa } from './jalali';
@@ -210,6 +213,93 @@ export function generateMicrotonalMidiBytes(
 }
 
 /**
+ * Generates standard MusicXML 4.0 from any arbitrary transcribed Persian note list
+ * (e.g. Audio Slowdowner microtonal transcriptions) for MuseScore / Finale / Sibelius.
+ */
+export function generateNotesMusicXml(
+  titleFa: string,
+  notes: Array<PersianNoteSpec & { durationBeats?: number }>,
+  koronMode: KoronMode = 'standard_50',
+  meter: string = '4/4'
+): string {
+  const source: Array<PersianNoteSpec & { durationBeats?: number }> =
+    notes.length > 0 ? notes : [{ letter: 'G', accidental: 'natural', octave: 4, durationBeats: 1 }];
+  const safeNotes: MelodyNote[] = source.map((n) => ({
+    letter: n.letter,
+    accidental: n.accidental,
+    octave: n.octave,
+    durationBeats: n.durationBeats ?? 1,
+  }));
+  const syntheticGusheh: Gusheh = {
+    id: 'transcribed_notes',
+    dastgahId: 'shur',
+    order: 1,
+    nameFa: titleFa || 'نت‌نگاری ربع‌پرده نوانگار',
+    nameEn: 'Navanegar Transcription',
+    role: 'daramad',
+    difficulty: 1,
+    shahed: safeNotes[0],
+    ist: safeNotes[safeNotes.length - 1],
+    aghaz: safeNotes[0],
+    scale: safeNotes.slice(0, 7),
+    ornaments: [],
+    melody: safeNotes,
+    practiceLoop: {
+      startIndex: 0,
+      endIndex: Math.max(0, safeNotes.length - 1),
+      defaultBpm: 92,
+      meter: (['2/4', '3/4', '4/4', '5/8', '6/8', '7/8'].includes(meter) ? meter : '4/4') as Gusheh['practiceLoop']['meter'],
+    },
+    modulations: [],
+    descriptionFa: 'خروجی نت‌نگاری میکروتونال نوانگار',
+  };
+  return generateGushehMusicXml(syntheticGusheh, koronMode);
+}
+
+/**
+ * Generates a microtonal Standard MIDI File (.mid) with 14-bit Pitch Bend for Koron/Sori
+ * from any arbitrary transcribed Persian note sequence.
+ */
+export function generateNotesMicrotonalMidiBytes(
+  notes: Array<PersianNoteSpec & { durationBeats?: number }>,
+  bpm: number = 92,
+  koronMode: KoronMode = 'standard_50'
+): Uint8Array {
+  const source: Array<PersianNoteSpec & { durationBeats?: number }> =
+    notes.length > 0 ? notes : [{ letter: 'G', accidental: 'natural', octave: 4, durationBeats: 1 }];
+  const safeNotes: MelodyNote[] = source.map((n) => ({
+    letter: n.letter,
+    accidental: n.accidental,
+    octave: n.octave,
+    durationBeats: n.durationBeats ?? 1,
+  }));
+  const syntheticGusheh: Gusheh = {
+    id: 'transcribed_midi',
+    dastgahId: 'shur',
+    order: 1,
+    nameFa: 'نت‌نگاری MIDI نوانگار',
+    nameEn: 'Navanegar MIDI',
+    role: 'daramad',
+    difficulty: 1,
+    shahed: safeNotes[0],
+    ist: safeNotes[safeNotes.length - 1],
+    aghaz: safeNotes[0],
+    scale: safeNotes.slice(0, 7),
+    ornaments: [],
+    melody: safeNotes,
+    practiceLoop: {
+      startIndex: 0,
+      endIndex: Math.max(0, safeNotes.length - 1),
+      defaultBpm: bpm,
+      meter: '4/4',
+    },
+    modulations: [],
+    descriptionFa: '',
+  };
+  return generateMicrotonalMidiBytes(syntheticGusheh, bpm, koronMode);
+}
+
+/**
  * Encodes mono Float32 PCM samples [-1..1] into a standard 16-bit RIFF/WAVE binary buffer.
  */
 export function encodeMonoPcmToWav(samples: Float32Array, sampleRate = 44100): Uint8Array {
@@ -249,7 +339,8 @@ export function encodeMonoPcmToWav(samples: Float32Array, sampleRate = 44100): U
 }
 
 /**
- * Offline Karplus-Strong renderer producing a complete downloadable WAV file of a Gusheh.
+ * Offline physical-modeling renderer producing a complete downloadable WAV file of a Gusheh,
+ * including real Iranian ornaments (Eshareh, Tekieh, Riz, Dorab, Tahrir, Malesh).
  */
 export function synthesizeGushehToWav(
   gusheh: Gusheh,
@@ -257,30 +348,50 @@ export function synthesizeGushehToWav(
   bpm = gusheh.practiceLoop.defaultBpm,
   a4Hz = 440,
   koronMode: KoronMode = 'standard_50',
-  sampleRate = 22050
+  sampleRate = 22050,
+  enableOrnaments = true
 ): Uint8Array {
   const beatSec = 60 / Math.max(40, Math.min(220, bpm));
   const totalSec =
-    gusheh.melody.reduce((acc, m) => acc + Math.max(0.2, m.durationBeats * beatSec), 0) + 0.6;
+    gusheh.melody.reduce((acc, m) => acc + Math.max(0.2, m.durationBeats * beatSec), 0) + 0.8;
   const totalSamples = Math.max(sampleRate, Math.ceil(totalSec * sampleRate));
   const mix = new Float32Array(totalSamples);
 
   let cursorSec = 0.05;
+  let prevFreqHz: number | undefined;
   for (const m of gusheh.melody) {
     const durSec = Math.max(0.2, m.durationBeats * beatSec);
     const freq = noteToFrequency(m, a4Hz, koronMode);
-    const noteSamples = synthesizeKarplusStrongSamples({
-      frequency: freq,
-      sampleRate,
+    const events = expandNoteWithOrnaments({
+      baseFreqHz: freq,
       durationSec: durSec * 1.12,
       instrument,
       ornament: m.ornament,
       velocity: 0.82,
+      enableOrnaments,
+      scale: gusheh.scale,
+      a4Hz,
+      koronMode,
+      prevFreqHz,
     });
-    const startIdx = Math.floor(cursorSec * sampleRate);
-    for (let i = 0; i < noteSamples.length && startIdx + i < totalSamples; i++) {
-      mix[startIdx + i] = Math.tanh(mix[startIdx + i] + noteSamples[i]);
+    for (const ev of events) {
+      const noteSamples = synthesizeKarplusStrongSamples({
+        frequency: ev.frequencyHz,
+        sampleRate,
+        durationSec: ev.durationSec,
+        instrument,
+        ornament: ev.ornament,
+        velocity: ev.velocity,
+        slideFromHz: ev.slideFromHz,
+      });
+      const startIdx = Math.floor((cursorSec + ev.offsetSec) * sampleRate);
+      for (let i = 0; i < noteSamples.length && startIdx + i < totalSamples; i++) {
+        if (startIdx + i >= 0) {
+          mix[startIdx + i] = Math.tanh(mix[startIdx + i] + noteSamples[i]);
+        }
+      }
     }
+    prevFreqHz = freq;
     cursorSec += durSec;
   }
 

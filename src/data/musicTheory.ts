@@ -340,6 +340,67 @@ export function getRecommendedTuning(dastgahId: string, instrument: InstrumentId
     };
   }
 
+  if (instrument === 'kamancheh') {
+    const isMahur = dastgahId === 'mahur' || dastgahId === 'rast_panjgah' || dastgahId === 'chahargah';
+    const isSegah = dastgahId === 'segah';
+    return {
+      dastgahId,
+      instrument,
+      titleFa: isMahur
+        ? 'کوک کمانچه ماهور / چهارگاه (می – لا – ر – سُل)'
+        : isSegah
+        ? 'کوک کمانچه سه‌گاه (می کُرُن – لا کُرُن – ر – سُل)'
+        : 'کوک کمانچه استاندارد شور / همایون (می – لا – ر – سُل)',
+      noteSummaryFa: 'چهار سیم آرشه‌ای کمانچه با کوک چهارم و پنجم درست',
+      strings: [
+        { id: 'kam-1', labelFa: 'سیم اول (زیر)', note: { letter: 'E', accidental: isSegah ? 'koron' : 'natural', octave: 5 } },
+        { id: 'kam-2', labelFa: 'سیم دوم', note: { letter: 'A', accidental: isSegah ? 'koron' : 'natural', octave: 4 } },
+        { id: 'kam-3', labelFa: 'سیم سوم', note: { letter: 'D', accidental: 'natural', octave: 4 } },
+        { id: 'kam-4', labelFa: 'سیم چهارم (بم)', note: { letter: 'G', accidental: 'natural', octave: 3 } },
+      ],
+    };
+  }
+
+  if (instrument === 'oud') {
+    const isHomayun = dastgahId === 'homayun' || dastgahId === 'bayat_esfahan';
+    return {
+      dastgahId,
+      instrument,
+      titleFa: isHomayun
+        ? 'کوک عود (بربت) همایون / اصفهان (دو – سُل – ر – لا – سُل بم)'
+        : 'کوک عود (بربت) استاندارد ایرانی (دو – سُل – ر – لا – فا)',
+      noteSummaryFa: '۵ جفت‌سیم بم و میانی بربت با طنین گرم کاسه چوبی',
+      strings: [
+        { id: 'oud-1', labelFa: 'جفت‌سیم ۱ (دو)', note: { letter: 'C', accidental: 'natural', octave: 4 } },
+        { id: 'oud-2', labelFa: 'جفت‌سیم ۲ (سُل)', note: { letter: 'G', accidental: 'natural', octave: 3 } },
+        { id: 'oud-3', labelFa: 'جفت‌سیم ۳ (ر)', note: { letter: 'D', accidental: 'natural', octave: 3 } },
+        { id: 'oud-4', labelFa: 'جفت‌سیم ۴ (لا)', note: { letter: 'A', accidental: 'natural', octave: 2 } },
+        { id: 'oud-5', labelFa: 'سیم ۵ بم', note: { letter: isHomayun ? 'G' : 'F', accidental: 'natural', octave: 2 } },
+      ],
+    };
+  }
+
+  if (instrument === 'tanbur') {
+    const isShaykhAmiri = dastgahId === 'mahur' || dastgahId === 'rast_panjgah' || dastgahId === 'nava';
+    return {
+      dastgahId,
+      instrument,
+      titleFa: isShaykhAmiri
+        ? 'کوک تنبور شیخ‌امیری (دو – دو – سُل / فاصله چهارم)'
+        : 'کوک تنبور طرز (دو – دو – فا / فاصله پنجم مقامی)',
+      noteSummaryFa: 'دو سیم زیر جفت (هم‌کوک) و یک سیم واخوان بم مقامی',
+      strings: [
+        { id: 'tan-1', labelFa: 'سیم ۱ زیر (جفت)', note: { letter: 'C', accidental: 'natural', octave: 4 } },
+        { id: 'tan-2', labelFa: 'سیم ۲ زیر (جفت)', note: { letter: 'C', accidental: 'natural', octave: 4 } },
+        {
+          id: 'tan-3',
+          labelFa: 'سیم ۳ واخوان (بم)',
+          note: { letter: isShaykhAmiri ? 'G' : 'F', accidental: 'natural', octave: 3 },
+        },
+      ],
+    };
+  }
+
   // Tar and Setar (4 courses: سفید، زرد، زیر/زنگ، بم)
   const presets: Record<string, { title: string; notes: [PersianNoteSpec, PersianNoteSpec, PersianNoteSpec, PersianNoteSpec] }> = {
     shur: {

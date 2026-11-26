@@ -60,11 +60,24 @@ export const ORNAMENT_LABELS_FA: Record<OrnamentType, string> = {
   tahrir: 'تحریر',
 };
 
+export const ALL_INSTRUMENT_IDS: InstrumentId[] = [
+  'tar',
+  'setar',
+  'santur',
+  'ney',
+  'kamancheh',
+  'oud',
+  'tanbur',
+];
+
 export const INSTRUMENT_LABELS_FA: Record<InstrumentId, string> = {
   tar: 'تار',
   setar: 'سه‌تار',
   santur: 'سنتور',
   ney: 'نی',
+  kamancheh: 'کمانچه',
+  oud: 'عود (بربت)',
+  tanbur: 'تنبور',
 };
 
 export const LEVEL_LABELS_FA: Record<LearnerLevel, string> = {

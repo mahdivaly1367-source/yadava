@@ -88,7 +88,15 @@ export function decodeAssignmentInput(rawInput: string): TeacherAssignment | nul
     const gusheh = GUSHEH_BY_ID[parsed.g];
     if (!gusheh) return null;
 
-    const validInstruments: InstrumentId[] = ['tar', 'setar', 'santur', 'ney'];
+    const validInstruments: InstrumentId[] = [
+      'tar',
+      'setar',
+      'santur',
+      'ney',
+      'kamancheh',
+      'oud',
+      'tanbur',
+    ];
     const validTraditions: RadifTraditionId[] = [
       'mirza_abdollah',
       'mahmoud_karimi',

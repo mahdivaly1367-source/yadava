@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   AudioWaveform,
   FileAudio,
+  FileCode2,
+  FileMusic,
   Play,
   Repeat,
   Sparkles,
@@ -16,6 +18,11 @@ import {
 } from '../audio/audioSlowdowner';
 import { playPersianNote } from '../audio/karplusStrong';
 import type { Gusheh, InstrumentId, KoronMode } from '../types/music';
+import {
+  generateNotesMicrotonalMidiBytes,
+  generateNotesMusicXml,
+  triggerFileDownload,
+} from '../utils/exporters';
 import { formatDurationFa, toPersianDigits } from '../utils/persian';
 
 interface AudioSlowdownerPanelProps {
@@ -362,13 +369,62 @@ export const AudioSlowdownerPanel: React.FC<AudioSlowdownerPanelProps> = ({
 
           {/* Microtonal Transcribed Notes Chips */}
           <div className="rounded-xl border border-slate-200/80 bg-slate-50/75 p-3 dark:border-slate-800 dark:bg-slate-800/45">
-            <div className="mb-2 flex items-center justify-between text-xs font-extrabold text-slate-800 dark:text-slate-100">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-extrabold text-slate-800 dark:text-slate-100">
               <span>
                 نت‌های استخراج‌شده توسط DSP ({toPersianDigits(result.notes.length)} نت)
               </span>
-              <span className="text-[10px] font-normal text-slate-500">
-                کلیک روی هر نت برای شنیدن و پرش به زمان آن
-              </span>
+              {result.notes.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const xml = generateNotesMusicXml(
+                        `نت‌نگاری ${sourceName || gusheh.nameFa}`,
+                        result.notes.map((n) => ({
+                          ...n.note,
+                          durationBeats: Math.max(0.5, Number(((n.endSec - n.startSec) * 1.5).toFixed(2))),
+                        })),
+                        koronMode
+                      );
+                      triggerFileDownload(
+                        new Blob([xml], {
+                          type: 'application/vnd.recordare.musicxml+xml;charset=utf-8',
+                        }),
+                        'navanegar-transcription.musicxml'
+                      );
+                    }}
+                    className="inline-flex items-center gap-1 rounded-lg bg-teal-600/90 hover:bg-teal-500 px-2 py-1 text-[10px] font-bold text-white cursor-pointer"
+                  >
+                    <FileCode2 className="h-3 w-3" />
+                    خروجی MusicXML
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const bytes = generateNotesMicrotonalMidiBytes(
+                        result.notes.map((n) => ({
+                          ...n.note,
+                          durationBeats: Math.max(0.5, Number(((n.endSec - n.startSec) * 1.5).toFixed(2))),
+                        })),
+                        92,
+                        koronMode
+                      );
+                      const buf = bytes.buffer.slice(
+                        bytes.byteOffset,
+                        bytes.byteOffset + bytes.byteLength
+                      ) as ArrayBuffer;
+                      triggerFileDownload(
+                        new Blob([buf], { type: 'audio/midi' }),
+                        'navanegar-transcription.mid'
+                      );
+                    }}
+                    className="inline-flex items-center gap-1 rounded-lg bg-amber-600/90 hover:bg-amber-500 px-2 py-1 text-[10px] font-bold text-white cursor-pointer"
+                  >
+                    <FileMusic className="h-3 w-3" />
+                    خروجی MIDI ربع‌پرده
+                  </button>
+                </div>
+              )}
             </div>
             {result.notes.length === 0 ? (
               <p className="text-xs text-slate-500">
