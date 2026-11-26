@@ -1,10 +1,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { detectPitchYin } from '../audio/dsp';
+import {
+  applyOfflineBodyColor,
+  buildInstrumentBodyIR,
+  PERSIAN_BODY_IR_SPECS,
+} from '../audio/instrumentBodyIR';
 import {
   DEFAULT_ACOUSTIC_SCULPT,
   getAcousticSculptSettings,
+  INSTRUMENT_SECONDARY_BANK,
   INSTRUMENT_TO_SAMPLE_BANK,
+  MASTER_STUDIO_PRESETS,
   PERSIAN_BODY_PROFILES,
   REAL_SAMPLE_CREDITS,
   selectBestSampleZone,
@@ -52,11 +60,11 @@ function readWavHeaderAndPeak(filePath: string): {
   };
 }
 
-describe('Real Studio Acoustic Sample Bank & Microtonal Sampler Engine', () => {
+describe('Real Studio Acoustic Sample Bank v2.5, 14-Mode Body IR Convolution & Microtonal Engine', () => {
   const manifestPath = path.join(SAMPLES_DIR, 'manifest.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as SampleBankManifest;
 
-  it('ships a compact (< 3.5 MB) valid 22.05kHz 16-bit mono real studio sample bank with all 45 WAVs intact', () => {
+  it('ships a compact (< 3.5 MB) valid 22.05kHz 16-bit mono real studio sample bank with all 54 WAVs intact', () => {
     expect(manifest.sampleRate).toBe(22050);
 
     let fileCount = 0;
@@ -85,9 +93,21 @@ describe('Real Studio Acoustic Sample Bank & Microtonal Sampler Engine', () => {
       }
     }
 
-    // Verify all 5 melodic multi-sample banks
+    // Verify all 7 melodic multi-sample banks (incl. tar_plectrum & kamancheh_stac)
+    expect(Object.keys(manifest.melodicBanks)).toEqual(
+      expect.arrayContaining([
+        'kamancheh',
+        'kamancheh_stac',
+        'tar_plectrum',
+        'santur',
+        'lute',
+        'oud',
+        'ney',
+      ])
+    );
+
     for (const bank of Object.values(manifest.melodicBanks)) {
-      expect(bank.zones.length).toBeGreaterThanOrEqual(5);
+      expect(bank.zones.length).toBeGreaterThanOrEqual(4);
       for (const z of bank.zones) {
         const full = path.join(SAMPLES_DIR, z.file);
         expect(fs.existsSync(full)).toBe(true);
@@ -109,11 +129,11 @@ describe('Real Studio Acoustic Sample Bank & Microtonal Sampler Engine', () => {
       }
     }
 
-    expect(fileCount).toBe(45);
+    expect(fileCount).toBe(54);
     expect(totalBytes).toBeLessThan(3.5 * 1024 * 1024);
   });
 
-  it('maps all 7 Persian melodic instruments to valid calibrated banks & achieves < 0.01c microtonal rate precision on Koron/Sori', () => {
+  it('maps all 7 Persian melodic instruments + secondary layers & achieves < 0.01c microtonal rate precision on Koron/Sori', () => {
     const allInst: InstrumentId[] = [
       'tar',
       'setar',
@@ -137,6 +157,11 @@ describe('Real Studio Acoustic Sample Bank & Microtonal Sampler Engine', () => {
       expect(bank).toBeDefined();
       expect(PERSIAN_BODY_PROFILES[inst]).toBeDefined();
 
+      const secId = INSTRUMENT_SECONDARY_BANK[inst];
+      if (secId) {
+        expect(manifest.melodicBanks[secId]).toBeDefined();
+      }
+
       for (const note of testNotes) {
         const targetHz = noteToFrequency(note, 440, 'traditional_56');
         const sel = selectBestSampleZone(bank.zones, targetHz);
@@ -144,9 +169,57 @@ describe('Real Studio Acoustic Sample Bank & Microtonal Sampler Engine', () => {
         const effectiveHz = (sel?.zone.measuredHz ?? 1) * (sel?.playbackRate ?? 1);
         const errCents = Math.abs(1200 * Math.log2(effectiveHz / targetHz));
         expect(errCents).toBeLessThan(0.01);
-        // Ensure pitch shift stays natural (no extreme multi-octave chipmunk stretching!)
         expect(Math.abs(sel?.shiftCents ?? 9999)).toBeLessThan(650);
       }
+    }
+  });
+
+  it('builds strictly L2-normalized, zero-DC, pitch-preserving 12-14 mode Persian Body IRs for all 7 instruments', () => {
+    const allInst: InstrumentId[] = [
+      'tar',
+      'setar',
+      'santur',
+      'ney',
+      'kamancheh',
+      'oud',
+      'tanbur',
+    ];
+    const sr = 22050;
+    const akHz = noteToFrequency(
+      { letter: 'A', accidental: 'koron', octave: 4 },
+      440,
+      'traditional_56'
+    );
+    const sine = new Float32Array(8192);
+    for (let i = 0; i < sine.length; i++) {
+      sine[i] = 0.55 * Math.sin((2 * Math.PI * akHz * i) / sr);
+    }
+
+    for (const inst of allInst) {
+      const spec = PERSIAN_BODY_IR_SPECS[inst];
+      expect(spec.modes.length).toBeGreaterThanOrEqual(12);
+
+      const ir = buildInstrumentBodyIR(inst, sr);
+      expect(ir.length).toBeGreaterThan(500);
+
+      let energy = 0;
+      let sum = 0;
+      for (let i = 0; i < ir.length; i++) {
+        expect(Number.isFinite(ir[i])).toBe(true);
+        energy += ir[i] * ir[i];
+        sum += ir[i];
+      }
+      expect(Math.abs(Math.sqrt(energy) - 1)).toBeLessThan(0.02);
+      expect(Math.abs(sum / ir.length)).toBeLessThan(0.001);
+
+      // Verify offline body convolution introduces ZERO pitch drift (< 0.8c)
+      const convolved = applyOfflineBodyColor(sine, sr, inst, 0.45);
+      const yin = detectPitchYin(convolved.subarray(2048, 2048 + 4096), sr, {
+        rmsThreshold: 0.002,
+      });
+      expect(yin.frequency).not.toBeNull();
+      const driftCents = Math.abs(1200 * Math.log2((yin.frequency ?? 1) / akHz));
+      expect(driftCents).toBeLessThan(0.8);
     }
   });
 
@@ -161,9 +234,8 @@ describe('Real Studio Acoustic Sample Bank & Microtonal Sampler Engine', () => {
     const toneLen = Math.floor(sr * 0.85);
     const raw = new Float32Array(silentLead + toneLen);
 
-    // Add DC offset + leading silence + rich harmonic tone
     for (let i = 0; i < silentLead; i++) {
-      raw[i] = 0.08; // pure DC offset during dead lead-in
+      raw[i] = 0.08;
     }
     for (let i = 0; i < toneLen; i++) {
       const t = i / sr;
@@ -177,7 +249,6 @@ describe('Real Studio Acoustic Sample Bank & Microtonal Sampler Engine', () => {
     }
 
     const res = prepareAndCalibrateUserSample(raw, sr);
-    // Leading 90ms silence should be trimmed cleanly
     expect(res.durationSec).toBeLessThan(0.88);
     expect(res.durationSec).toBeGreaterThan(0.75);
 
@@ -193,24 +264,34 @@ describe('Real Studio Acoustic Sample Bank & Microtonal Sampler Engine', () => {
     expect(maxAbs).toBeLessThanOrEqual(0.86);
   });
 
-  it('persists and clamps AcousticSculptSettings & includes complete open-license sample attributions', () => {
+  it('persists and clamps all v2.5 AcousticSculptSettings, Master Studio Presets & open-license attributions', () => {
+    expect(MASTER_STUDIO_PRESETS).toHaveLength(4);
+
     const next = setAcousticSculptSettings({
       engineMode: 'acoustic_samples',
       bodyWarmth: 1.5,
       attackCrispness: -0.3,
       sympatheticShimmer: 0.72,
+      bodyConvolverMix: 1.25,
+      neyBreathiness: -0.2,
+      vibratoExpression: 0.85,
+      santurMallet: 'wood',
+      legatoMalesh: false,
       humanizeMicroCents: false,
     });
     expect(next.engineMode).toBe('acoustic_samples');
     expect(next.bodyWarmth).toBe(1);
     expect(next.attackCrispness).toBe(0);
-    expect(next.sympatheticShimmer).toBeCloseTo(0.72, 2);
-    expect(next.humanizeMicroCents).toBe(false);
-    expect(getAcousticSculptSettings().engineMode).toBe('acoustic_samples');
+    expect(next.bodyConvolverMix).toBe(1);
+    expect(next.neyBreathiness).toBe(0);
+    expect(next.vibratoExpression).toBeCloseTo(0.85, 2);
+    expect(next.santurMallet).toBe('wood');
+    expect(next.legatoMalesh).toBe(false);
+    expect(getAcousticSculptSettings().santurMallet).toBe('wood');
 
-    // Reset back to default studio settings
     setAcousticSculptSettings({ ...DEFAULT_ACOUSTIC_SCULPT });
     expect(getAcousticSculptSettings().engineMode).toBe('hybrid_studio');
+    expect(getAcousticSculptSettings().santurMallet).toBe('felt');
 
     expect(REAL_SAMPLE_CREDITS).toHaveLength(3);
     expect(REAL_SAMPLE_CREDITS.some((c) => c.license === 'CC BY 3.0')).toBe(true);

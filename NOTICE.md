@@ -13,12 +13,13 @@ Navanegar (نوانگار) bundles compact, YIN-calibrated studio acoustic recor
 - **Source**: Versilian Studios LLC — Versilian Community Sample Library (`sgossner/VCSL`, https://github.com/sgossner/VCSL)
 - **Instruments Used**:
   - `Frame Drum` (`daf/`)
+  - `Harpsichord, Italian` (`tar_plectrum/` — crisp plectrum steel-string layer fused with lambskin membrane Body IR for Persian Tar)
   - `Psaltery, Bowed and Plucked` & `Dan Tranh` (`santur/`, `oud/`)
-  - `Strumstick` (`lute/` — acoustically sculpted for Tar, Setar & Tanbur)
-  - `Baroque Bass Recorder` & `Baroque Tenor Recorder` (`ney/` — acoustically sculpted with Iranian reed-edge breath articulation)
+  - `Strumstick` (`lute/` — acoustically sculpted for Tar neck-body, Setar & Tanbur)
+  - `Baroque Bass Recorder` & `Baroque Tenor Recorder` (`ney/` — acoustically sculpted with Iranian Posht-e Dandan breath articulation)
 - **Modifications**: Trimmed, resampled to 22,050 Hz 16-bit mono PCM, YIN pitch-calibrated to concert frequency, zero-crossing loop points computed for sustained winds, and normalized.
 
-## 3. Aliexpress Erhu Bowed Spike-Fiddle (`public/samples/kamancheh/`)
+## 3. Aliexpress Erhu Bowed Spike-Fiddle (`public/samples/kamancheh/` & `kamancheh_stac/`)
 - **License**: Creative Commons Zero 1.0 Universal (**CC0 1.0 Public Domain**) — https://creativecommons.org/publicdomain/zero/1.0/
 - **Source**: `sfzinstruments/aliexpress-erhu` (https://github.com/sfzinstruments/aliexpress-erhu)
-- **Modifications**: Trimmed, resampled to 22,050 Hz 16-bit mono PCM, YIN pitch-calibrated, zero-crossing sustain loops computed, and shaped via Kamancheh mulberry-bowl formants.
+- **Modifications**: Trimmed sustained (`sus`) and detached short-bow (`stac`) recordings, resampled to 22,050 Hz 16-bit mono PCM, YIN pitch-calibrated, zero-crossing sustain loops computed, and shaped via Kamancheh spherical mulberry-bowl Body IR.

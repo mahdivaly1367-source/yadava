@@ -414,6 +414,31 @@ MELODIC_SPEC = {
             ("sfzinstruments/aliexpress-erhu", "Samples/sus/erhu_a6_sus_rr1.wav", "kamancheh/z5_a5.wav", "A5"),
         ],
     },
+    "kamancheh_stac": {
+        "license": "CC0-1.0",
+        "source": "sfzinstruments/aliexpress-erhu (short articulated detached bow stroke)",
+        "sustained": False,
+        "maxSec": 0.55,
+        "zones": [
+            ("sfzinstruments/aliexpress-erhu", "Samples/stac/erhu_d5_stac_rr1.wav", "kamancheh_stac/z1_d4.wav", "D4"),
+            ("sfzinstruments/aliexpress-erhu", "Samples/stac/erhu_g5_stac_rr1.wav", "kamancheh_stac/z2_g4.wav", "G4"),
+            ("sfzinstruments/aliexpress-erhu", "Samples/stac/erhu_b5_stac_rr1.wav", "kamancheh_stac/z3_b4.wav", "B4"),
+            ("sfzinstruments/aliexpress-erhu", "Samples/stac/erhu_e6_stac_rr1.wav", "kamancheh_stac/z4_e5.wav", "E5"),
+        ],
+    },
+    "tar_plectrum": {
+        "license": "CC0-1.0",
+        "source": "Versilian Community Sample Library (sgossner/VCSL) — Plectrum-Plucked Steel String (Italian Harpsichord)",
+        "sustained": False,
+        "maxSec": 1.25,
+        "zones": [
+            ("sgossner/VCSL", "Chordophones/Zithers/Harpsichord, Italian/Sustains/stop1/Harpsichord_stop1_C#2_1.wav", "tar_plectrum/z1_cs3.wav", "C#3"),
+            ("sgossner/VCSL", "Chordophones/Zithers/Harpsichord, Italian/Sustains/stop1/Harpsichord_stop1_G#2_1.wav", "tar_plectrum/z2_gs3.wav", "G#3"),
+            ("sgossner/VCSL", "Chordophones/Zithers/Harpsichord, Italian/Sustains/stop1/Harpsichord_stop1_D#3_1.wav", "tar_plectrum/z3_ds4.wav", "D#4"),
+            ("sgossner/VCSL", "Chordophones/Zithers/Harpsichord, Italian/Sustains/stop1/Harpsichord_stop1_A#3_1.wav", "tar_plectrum/z4_as4.wav", "A#4"),
+            ("sgossner/VCSL", "Chordophones/Zithers/Harpsichord, Italian/Sustains/stop1/Harpsichord_stop1_E4_1.wav", "tar_plectrum/z5_e5.wav", "E5"),
+        ],
+    },
     "santur": {
         "license": "CC0-1.0",
         "source": "Versilian Community Sample Library (sgossner/VCSL) — Acoustic Zither (Psaltery + Dan Tranh)",
@@ -481,7 +506,7 @@ def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     manifest = {
-        "version": "2.1.0",
+        "version": "2.2.0",
         "sampleRate": TARGET_SR,
         "percussion": {},
         "melodicBanks": {},

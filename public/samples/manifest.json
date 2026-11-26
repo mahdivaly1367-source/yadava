@@ -1,5 +1,5 @@
 {
-  "version": "2.1.0",
+  "version": "2.2.0",
   "sampleRate": 22050,
   "percussion": {
     "tombak": {
@@ -93,6 +93,74 @@
           "durationSec": 1.65,
           "loopStartSec": 0.46295,
           "loopEndSec": 1.28721
+        }
+      ]
+    },
+    "kamancheh_stac": {
+      "license": "CC0-1.0",
+      "source": "sfzinstruments/aliexpress-erhu (short articulated detached bow stroke)",
+      "sustained": false,
+      "zones": [
+        {
+          "file": "kamancheh_stac/z1_d4.wav",
+          "concertNote": "D4",
+          "measuredHz": 292.603,
+          "durationSec": 0.55
+        },
+        {
+          "file": "kamancheh_stac/z2_g4.wav",
+          "concertNote": "G4",
+          "measuredHz": 399.89,
+          "durationSec": 0.55
+        },
+        {
+          "file": "kamancheh_stac/z3_b4.wav",
+          "concertNote": "B4",
+          "measuredHz": 495.691,
+          "durationSec": 0.55
+        },
+        {
+          "file": "kamancheh_stac/z4_e5.wav",
+          "concertNote": "E5",
+          "measuredHz": 658.651,
+          "durationSec": 0.55
+        }
+      ]
+    },
+    "tar_plectrum": {
+      "license": "CC0-1.0",
+      "source": "Versilian Community Sample Library (sgossner/VCSL) \u2014 Plectrum-Plucked Steel String (Italian Harpsichord)",
+      "sustained": false,
+      "zones": [
+        {
+          "file": "tar_plectrum/z1_cs3.wav",
+          "concertNote": "C#3",
+          "measuredHz": 139.216,
+          "durationSec": 1.25
+        },
+        {
+          "file": "tar_plectrum/z2_gs3.wav",
+          "concertNote": "G#3",
+          "measuredHz": 208.792,
+          "durationSec": 1.25
+        },
+        {
+          "file": "tar_plectrum/z3_ds4.wav",
+          "concertNote": "D#4",
+          "measuredHz": 313.012,
+          "durationSec": 1.25
+        },
+        {
+          "file": "tar_plectrum/z4_as4.wav",
+          "concertNote": "A#4",
+          "measuredHz": 467.779,
+          "durationSec": 1.25
+        },
+        {
+          "file": "tar_plectrum/z5_e5.wav",
+          "concertNote": "E5",
+          "measuredHz": 661.104,
+          "durationSec": 1.25
         }
       ]
     },

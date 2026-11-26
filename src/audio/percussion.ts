@@ -344,9 +344,35 @@ export class IranianPercussionEngine {
       while (this.nextStepTime < audioCtx.currentTime + scheduleAheadSec) {
         const idx = this.stepIdx % steps.length;
         const stroke = steps[idx];
-        triggerPersianStroke(audioCtx, this.nextStepTime, stroke, this.instrument, this.volume);
+        const sculpt = getAcousticSculptSettings();
+        // Authentic Persian groove dynamics: Beat 1 (سرضرب) accented, off-beats sculpted naturally
+        const dynAccent =
+          idx === 0
+            ? 1.0
+            : stroke === 'tom'
+              ? 0.9
+              : stroke === 'bak'
+                ? idx % 2 === 1
+                  ? 0.78
+                  : 0.86
+                : stroke === 'riz'
+                  ? 0.88
+                  : 0.82;
+        // Subtle ±3ms organic micro-timing feel when humanize is enabled (never drifts tempo!)
+        const microSwingSec =
+          sculpt.humanizeMicroCents && idx > 0
+            ? (idx % 2 === 1 ? 0.003 : -0.002)
+            : 0;
+        const triggerAt = Math.max(audioCtx.currentTime + 0.002, this.nextStepTime + microSwingSec);
+        triggerPersianStroke(
+          audioCtx,
+          triggerAt,
+          stroke,
+          this.instrument,
+          this.volume * dynAccent
+        );
 
-        const delayMs = Math.max(0, (this.nextStepTime - audioCtx.currentTime) * 1000);
+        const delayMs = Math.max(0, (triggerAt - audioCtx.currentTime) * 1000);
         const cb = this.onStep;
         window.setTimeout(() => cb?.(idx, stroke), delayMs);
 

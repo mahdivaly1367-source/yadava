@@ -8,6 +8,7 @@ import type {
 } from '../types/music';
 import { getAudioContext } from './audioContext';
 import { getReverbInputNode } from './hallReverb';
+import { getInstrumentBodyBus, PERSIAN_BODY_IR_SPECS } from './instrumentBodyIR';
 import { expandNoteWithOrnaments } from './ornamentEngine';
 import { acousticSampleBank, getAcousticSculptSettings } from './sampleEngine';
 
@@ -698,6 +699,7 @@ export function playPersianNote(
     volume: Math.max(0.1, Math.min(1.0, velocity * 0.88)),
     startTime: now,
     ornament: effectiveOrnament,
+    prevFreqHz: options.prevFreqHz,
   });
 
   if (sampleStopper) {
@@ -765,7 +767,14 @@ export function playPersianNote(
     src.connect(bodyWarmthFilter);
     bodyWarmthFilter.connect(airShelf);
     airShelf.connect(masterGain);
-    masterGain.connect(getReverbInputNode(ctx));
+    if (sculpt.bodyConvolverMix > 0.03) {
+      const bodyMix =
+        PERSIAN_BODY_IR_SPECS[options.instrument].defaultWetMix *
+        (0.35 + sculpt.bodyConvolverMix * 0.9);
+      masterGain.connect(getInstrumentBodyBus(ctx, options.instrument, bodyMix));
+    } else {
+      masterGain.connect(getReverbInputNode(ctx));
+    }
     src.start(now + ev.offsetSec);
     activeSources.push(src);
   }

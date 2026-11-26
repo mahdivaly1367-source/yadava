@@ -98,7 +98,7 @@ export default defineConfig({
           'firebase-db': ['firebase/firestore'],
           icons: ['lucide-react'],
           'radif-data': ['./src/data/radifData.ts', './src/data/persianPoetry.ts', './src/data/classicalPieces.ts'],
-          'audio-dsp': ['./src/audio/karplusStrong.ts', './src/audio/sampleEngine.ts', './src/audio/ornamentEngine.ts', './src/audio/dsp.ts'],
+          'audio-dsp': ['./src/audio/karplusStrong.ts', './src/audio/sampleEngine.ts', './src/audio/instrumentBodyIR.ts', './src/audio/ornamentEngine.ts', './src/audio/dsp.ts'],
         },
       },
     },

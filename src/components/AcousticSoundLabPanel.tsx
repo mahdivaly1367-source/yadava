@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { getAudioContext } from '../audio/audioContext';
+import { PERSIAN_BODY_IR_SPECS } from '../audio/instrumentBodyIR';
 import { playPersianNote } from '../audio/karplusStrong';
 import { triggerPersianStroke } from '../audio/percussion';
 import {
   acousticSampleBank,
   DEFAULT_ACOUSTIC_SCULPT,
   getAcousticSculptSettings,
+  MASTER_STUDIO_PRESETS,
   REAL_SAMPLE_CREDITS,
   setAcousticSculptSettings,
 } from '../audio/sampleEngine';
+import { noteToFrequency } from '../data/musicTheory';
 import type {
   AcousticSculptSettings,
   CustomInstrumentSampleMeta,
@@ -37,7 +40,7 @@ const ENGINE_MODE_CARDS: Array<{
     titleFa: 'هیبرید سمپل واقعی + بدنه ایرانی',
     badgeFa: 'پیشنهاد ویژه',
     descFa:
-      'سمپل‌های استودیویی کالیبره‌شده با YIN + رزونانس کاسه چوبی/پوستی، جفت‌سیم و تحریر زنده (دقت زیر ۱.۵ سنت)',
+      '۵۴ سمپل استودیویی کالیبره‌شده با YIN + کانولوشن ۱۲ تا ۱۴ مُد بدنه چوبی/پوستی، جفت‌سیم، مالش و تحریر زنده',
   },
   {
     id: 'acoustic_samples',
@@ -51,7 +54,7 @@ const ENGINE_MODE_CARDS: Array<{
     titleFa: 'سنتز فیزیکی پیشرفته v2',
     badgeFa: 'بدون نیاز به فایل',
     descFa:
-      'مدل‌سازی ریاضی موج‌بر (Karplus-Strong) و فیلترهای بدنه برای مقایسه A/B و مصرف حافظه فوق‌کم',
+      'مدل‌سازی ریاضی موج‌بر (Karplus-Strong) + کانولوشن بدنه برای مقایسه A/B و مصرف حافظه فوق‌کم',
   },
 ];
 
@@ -74,6 +77,8 @@ export const AcousticSoundLabPanel: React.FC<AcousticSoundLabPanelProps> = ({
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+
+  const activeBodySpec = PERSIAN_BODY_IR_SPECS[activeInstrument];
 
   useEffect(() => {
     setUploadInstrument(activeInstrument);
@@ -115,34 +120,38 @@ export const AcousticSoundLabPanel: React.FC<AcousticSoundLabPanelProps> = ({
     if (settings.engineMode !== 'physical_v2' && !acousticSampleBank.isInstrumentReady(instId)) {
       await acousticSampleBank.preloadInstrument(ctx, instId);
     }
-    // Authentic Shur microtonal motif: G4 -> A-Koron4 -> Bb4 -> A-Koron4 -> G4
+    // Expressive Shur motif covering quick articulation + Malesh glide + sustained Shahed/Ist:
+    // G4 -> A-Koron4 -> Bb4 -> C5 -> A-Koron4 -> G4 (sustained)
     const motif: Array<{
-      letter: 'G' | 'A' | 'B';
+      letter: 'G' | 'A' | 'B' | 'C';
       accidental: 'natural' | 'koron' | 'flat';
       octave: number;
       dur: number;
+      vel: number;
       orn?: OrnamentType;
     }> = [
-      { letter: 'G', accidental: 'natural', octave: 4, dur: 0.42 },
-      { letter: 'A', accidental: 'koron', octave: 4, dur: 0.48, orn: 'eshareh' },
-      { letter: 'B', accidental: 'flat', octave: 4, dur: 0.42 },
-      { letter: 'A', accidental: 'koron', octave: 4, dur: 0.45, orn: 'tekieh' },
-      { letter: 'G', accidental: 'natural', octave: 4, dur: 0.95 },
+      { letter: 'G', accidental: 'natural', octave: 4, dur: 0.34, vel: 0.9 },
+      { letter: 'A', accidental: 'koron', octave: 4, dur: 0.32, vel: 0.85 },
+      { letter: 'B', accidental: 'flat', octave: 4, dur: 0.44, vel: 0.92, orn: 'eshareh' },
+      { letter: 'C', accidental: 'natural', octave: 5, dur: 0.38, vel: 0.88 },
+      { letter: 'A', accidental: 'koron', octave: 4, dur: 0.46, vel: 0.86, orn: 'tekieh' },
+      { letter: 'G', accidental: 'natural', octave: 4, dur: 1.1, vel: 0.9 },
     ];
     let offset = 0.02;
+    let prevHz: number | undefined;
     for (const step of motif) {
-      playPersianNote(
-        { letter: step.letter, accidental: step.accidental, octave: step.octave },
-        {
-          instrument: instId,
-          durationSec: step.dur,
-          a4Hz,
-          koronMode,
-          ornament: step.orn,
-          startTimeOffsetSec: offset,
-          velocity: 0.88,
-        }
-      );
+      const noteSpec = { letter: step.letter, accidental: step.accidental, octave: step.octave };
+      playPersianNote(noteSpec, {
+        instrument: instId,
+        durationSec: step.dur,
+        a4Hz,
+        koronMode,
+        ornament: step.orn,
+        startTimeOffsetSec: offset,
+        velocity: step.vel,
+        prevFreqHz: prevHz,
+      });
+      prevHz = noteToFrequency(noteSpec, a4Hz, koronMode);
       offset += step.dur * 0.88;
     }
   };
@@ -152,27 +161,31 @@ export const AcousticSoundLabPanel: React.FC<AcousticSoundLabPanelProps> = ({
     if (settings.engineMode !== 'physical_v2') {
       await acousticSampleBank.preloadPercussion(ctx, inst);
     }
-    const pattern: Array<{ stroke: 'tom' | 'bak' | 'pelang' | 'riz' | 'chain'; dt: number }> =
+    const pattern: Array<{
+      stroke: 'tom' | 'bak' | 'pelang' | 'riz' | 'chain';
+      dt: number;
+      vol: number;
+    }> =
       inst === 'tombak'
         ? [
-            { stroke: 'tom', dt: 0.02 },
-            { stroke: 'bak', dt: 0.28 },
-            { stroke: 'pelang', dt: 0.52 },
-            { stroke: 'tom', dt: 0.78 },
-            { stroke: 'riz', dt: 1.04 },
-            { stroke: 'bak', dt: 1.32 },
+            { stroke: 'tom', dt: 0.02, vol: 0.95 },
+            { stroke: 'bak', dt: 0.27, vol: 0.78 },
+            { stroke: 'pelang', dt: 0.51, vol: 0.84 },
+            { stroke: 'tom', dt: 0.76, vol: 0.88 },
+            { stroke: 'riz', dt: 1.02, vol: 0.86 },
+            { stroke: 'bak', dt: 1.3, vol: 0.8 },
           ]
         : [
-            { stroke: 'tom', dt: 0.02 },
-            { stroke: 'chain', dt: 0.3 },
-            { stroke: 'bak', dt: 0.58 },
-            { stroke: 'tom', dt: 0.84 },
-            { stroke: 'pelang', dt: 1.12 },
-            { stroke: 'chain', dt: 1.36 },
+            { stroke: 'tom', dt: 0.02, vol: 0.96 },
+            { stroke: 'chain', dt: 0.29, vol: 0.84 },
+            { stroke: 'bak', dt: 0.56, vol: 0.8 },
+            { stroke: 'tom', dt: 0.82, vol: 0.9 },
+            { stroke: 'pelang', dt: 1.09, vol: 0.85 },
+            { stroke: 'chain', dt: 1.33, vol: 0.88 },
           ];
     const base = ctx.currentTime;
     for (const hit of pattern) {
-      triggerPersianStroke(ctx, base + hit.dt, hit.stroke, inst, 0.85);
+      triggerPersianStroke(ctx, base + hit.dt, hit.stroke, inst, hit.vol);
     }
   };
 
@@ -220,10 +233,10 @@ export const AcousticSoundLabPanel: React.FC<AcousticSoundLabPanelProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-ink-100">
         <div>
           <h3 className="text-sm sm:text-base font-extrabold text-ink-900">
-            آزمایشگاه صدا و سمپل آکوستیک واقعی (نسخه ۲)
+            آزمایشگاه صدا و سمپل آکوستیک واقعی (نسخه ۲.۵ استودیویی)
           </h3>
           <p className="text-xs text-ink-500 mt-0.5">
-            موتور هیبرید ۴۵ سمپل واقعی کالیبره‌شده با YIN + بدنه آکوستیک ایرانی با حفظ دقت ربع‌پرده زیر ۲ سنت
+            موتور هیبرید ۵۴ سمپل واقعی کالیبره‌شده با YIN + کانولوشن ۱۲ تا ۱۴ مُد بدنه ساز ایرانی با دقت کوک زیر ۰.۰۱ سنت
           </p>
         </div>
 
@@ -240,6 +253,21 @@ export const AcousticSoundLabPanel: React.FC<AcousticSoundLabPanelProps> = ({
             {preloading ? 'در حال بارگذاری...' : 'پیش‌بارگذاری کامل همه سازها'}
           </button>
         </div>
+      </div>
+
+      {/* Active Instrument Physical Body IR Architecture Card */}
+      <div className="p-3 rounded-2xl bg-gradient-to-l from-turquoise-50/80 to-amber-50/50 border border-turquoise-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div>
+          <div className="font-extrabold text-ink-900">
+            مدل فیزیکی بدنه فعال: {activeBodySpec.nameFa}
+          </div>
+          <div className="text-[11px] text-ink-600 mt-0.5">
+            {activeBodySpec.bodyMaterialFa} · {toPersianDigits(activeBodySpec.modes.length)} مُد رزونانس کانولوشن ({toPersianDigits(activeBodySpec.lengthMs)} میلی‌ثانیه)
+          </div>
+        </div>
+        <span className="px-2.5 py-1 rounded-xl bg-white/90 border border-turquoise-200 text-[11px] font-extrabold text-turquoise-800">
+          کانولوشن بدنه: {toPersianDigits(Math.round(settings.bodyConvolverMix * 100))}٪
+        </span>
       </div>
 
       {/* 1. Sound Engine Mode Cards */}
@@ -263,9 +291,7 @@ export const AcousticSoundLabPanel: React.FC<AcousticSoundLabPanelProps> = ({
                   <span className="text-xs font-extrabold text-ink-900">{card.titleFa}</span>
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      active
-                        ? 'bg-turquoise-600 text-white'
-                        : 'bg-ink-100 text-ink-600'
+                      active ? 'bg-turquoise-600 text-white' : 'bg-ink-100 text-ink-600'
                     }`}
                   >
                     {card.badgeFa}
@@ -278,11 +304,31 @@ export const AcousticSoundLabPanel: React.FC<AcousticSoundLabPanelProps> = ({
         </div>
       </div>
 
-      {/* 2. Acoustic Tone Sculpting Sliders */}
-      <div className="p-3.5 rounded-2xl bg-parchment-50 border border-ink-100 space-y-3">
-        <div className="flex items-center justify-between">
+      {/* 1B. Master Studio Acoustic Presets */}
+      <div className="space-y-2">
+        <div className="text-xs font-extrabold text-ink-800">
+          پروفایل‌های آماده مسترینگ استودیویی (۱ کلیک):
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          {MASTER_STUDIO_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => updateSettings(preset.patch)}
+              className="text-right p-2.5 rounded-xl bg-white border border-ink-200 hover:border-turquoise-400 hover:bg-turquoise-50/40 transition"
+            >
+              <div className="text-xs font-extrabold text-ink-900">{preset.nameFa}</div>
+              <div className="text-[10px] text-ink-500 mt-0.5 leading-4">{preset.subtitleFa}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 2. Fine-Grained Acoustic Tone & Articulation Deck */}
+      <div className="p-3.5 rounded-2xl bg-parchment-50 border border-ink-100 space-y-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs font-extrabold text-ink-800">
-            تنظیم دقیق بدنه آکوستیک و مضراب / آرشه
+            ظریف‌کاری بدنه آکوستیک، مضراب، نَفَس نی و مالش زنده
           </span>
           <button
             type="button"
@@ -293,7 +339,23 @@ export const AcousticSoundLabPanel: React.FC<AcousticSoundLabPanelProps> = ({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <label className="block">
+            <div className="flex justify-between text-[11px] font-bold text-ink-700 mb-1">
+              <span>کانولوشن بدنه چوبی/پوستی (Body IR)</span>
+              <span>{toPersianDigits(Math.round(settings.bodyConvolverMix * 100))}٪</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={settings.bodyConvolverMix}
+              onChange={(e) => updateSettings({ bodyConvolverMix: Number(e.target.value) })}
+              className="w-full accent-turquoise-600"
+            />
+          </label>
+
           <label className="block">
             <div className="flex justify-between text-[11px] font-bold text-ink-700 mb-1">
               <span>گرمای کاسه و پوست (Body Warmth)</span>
@@ -312,7 +374,7 @@ export const AcousticSoundLabPanel: React.FC<AcousticSoundLabPanelProps> = ({
 
           <label className="block">
             <div className="flex justify-between text-[11px] font-bold text-ink-700 mb-1">
-              <span>شفافیت مضراب / نَفَس / آرشه</span>
+              <span>شفافیت مضراب / آرشه (Attack Crispness)</span>
               <span>{toPersianDigits(Math.round(settings.attackCrispness * 100))}٪</span>
             </div>
             <input
@@ -328,7 +390,7 @@ export const AcousticSoundLabPanel: React.FC<AcousticSoundLabPanelProps> = ({
 
           <label className="block">
             <div className="flex justify-between text-[11px] font-bold text-ink-700 mb-1">
-              <span>طنین جفت‌سیم و واخوان</span>
+              <span>طنین جفت‌سیم و واخوان / مشتاق</span>
               <span>{toPersianDigits(Math.round(settings.sympatheticShimmer * 100))}٪</span>
             </div>
             <input
@@ -341,25 +403,98 @@ export const AcousticSoundLabPanel: React.FC<AcousticSoundLabPanelProps> = ({
               className="w-full accent-turquoise-600"
             />
           </label>
+
+          <label className="block">
+            <div className="flex justify-between text-[11px] font-bold text-ink-700 mb-1">
+              <span>نَفَس پشت‌دندان نی (Ney Breath)</span>
+              <span>{toPersianDigits(Math.round(settings.neyBreathiness * 100))}٪</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={settings.neyBreathiness}
+              onChange={(e) => updateSettings({ neyBreathiness: Number(e.target.value) })}
+              className="w-full accent-turquoise-600"
+            />
+          </label>
+
+          <label className="block">
+            <div className="flex justify-between text-[11px] font-bold text-ink-700 mb-1">
+              <span>ویبراتوی طبیعی نی و کمانچه</span>
+              <span>{toPersianDigits(Math.round(settings.vibratoExpression * 100))}٪</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={settings.vibratoExpression}
+              onChange={(e) => updateSettings({ vibratoExpression: Number(e.target.value) })}
+              className="w-full accent-turquoise-600"
+            />
+          </label>
         </div>
 
-        <label className="inline-flex items-center gap-2 text-xs text-ink-700 font-semibold cursor-pointer">
-          <input
-            type="checkbox"
-            checked={settings.humanizeMicroCents}
-            onChange={(e) => updateSettings({ humanizeMicroCents: e.target.checked })}
-            className="rounded accent-turquoise-600"
-          />
-          <span>
-            طبیعی‌سازی چرخشی ضربه‌ها (Round-Robin Humanize — تنوع ظریف زیر ۰.۹ سنت برای جلوگیری از صدای ماشینی)
-          </span>
-        </label>
+        {/* Santur Mallet Switch + Legato Malesh & Humanize Toggles */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-ink-100">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-extrabold text-ink-700">نوع مضراب سنتور:</span>
+            <div className="inline-flex rounded-xl bg-white border border-ink-200 p-0.5">
+              <button
+                type="button"
+                onClick={() => updateSettings({ santurMallet: 'felt' })}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
+                  settings.santurMallet === 'felt'
+                    ? 'bg-turquoise-600 text-white'
+                    : 'text-ink-600 hover:text-ink-900'
+                }`}
+              >
+                نمدی مخملین (گرم)
+              </button>
+              <button
+                type="button"
+                onClick={() => updateSettings({ santurMallet: 'wood' })}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
+                  settings.santurMallet === 'wood'
+                    ? 'bg-amber-600 text-white'
+                    : 'text-ink-600 hover:text-ink-900'
+                }`}
+              >
+                چوبی لخت (شفاف)
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="inline-flex items-center gap-1.5 text-xs text-ink-700 font-semibold cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.legatoMalesh}
+                onChange={(e) => updateSettings({ legatoMalesh: e.target.checked })}
+                className="rounded accent-turquoise-600"
+              />
+              <span>مالش و اتصال نرم نت‌ها (کمانچه، نی، عود و سه‌تار)</span>
+            </label>
+
+            <label className="inline-flex items-center gap-1.5 text-xs text-ink-700 font-semibold cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.humanizeMicroCents}
+                onChange={(e) => updateSettings({ humanizeMicroCents: e.target.checked })}
+                className="rounded accent-turquoise-600"
+              />
+              <span>تنوع چرخشی انسانی (زیر ۰.۸ سنت)</span>
+            </label>
+          </div>
+        </div>
       </div>
 
       {/* 3. Live Audition Deck — All 7 Melodic + Tombak & Daf */}
       <div className="space-y-2.5">
         <div className="text-xs font-extrabold text-ink-800">
-          شنیدن زنده موتیف شور (سُل – لا کُرن – سی‌بمل – سُل) روی همه سازها:
+          شنیدن زنده جمله آواز شور با مالش، اشاره و تکیه (سُل – لا کُرن – سی‌بمل – دو – لا کُرن – سُل):
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
           {ALL_INSTRUMENT_IDS.map((instId) => {
@@ -395,7 +530,7 @@ export const AcousticSoundLabPanel: React.FC<AcousticSoundLabPanelProps> = ({
             onClick={() => void auditionPercussion('tombak')}
             className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 hover:bg-amber-100 text-xs font-bold transition"
           >
-            🥁 تست تنبک واقعی استودیویی (۱۱ ضربه چرخشی)
+            🥁 تست تنبک واقعی استودیویی (۱۱ ضربه چرخشی + تاکید سرضرب)
           </button>
           <button
             type="button"
