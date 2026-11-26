@@ -62,6 +62,17 @@ export default defineConfig({
               },
             },
           },
+          {
+            urlPattern: ({ url }) => /\/samples\/.*\.(wav|json)$/i.test(url.pathname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'navanegar-real-acoustic-samples-v2',
+              expiration: {
+                maxEntries: 80,
+                maxAgeSeconds: 60 * 60 * 24 * 180,
+              },
+            },
+          },
         ],
       },
     }),
@@ -87,7 +98,7 @@ export default defineConfig({
           'firebase-db': ['firebase/firestore'],
           icons: ['lucide-react'],
           'radif-data': ['./src/data/radifData.ts', './src/data/persianPoetry.ts', './src/data/classicalPieces.ts'],
-          'audio-dsp': ['./src/audio/karplusStrong.ts', './src/audio/ornamentEngine.ts', './src/audio/dsp.ts'],
+          'audio-dsp': ['./src/audio/karplusStrong.ts', './src/audio/sampleEngine.ts', './src/audio/instrumentBodyIR.ts', './src/audio/ornamentEngine.ts', './src/audio/dsp.ts'],
         },
       },
     },

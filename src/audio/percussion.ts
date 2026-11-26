@@ -4,6 +4,8 @@ import type {
   PercussionInstrument,
 } from '../types/music';
 import { getAudioContext } from './audioContext';
+import { getReverbInputNode } from './hallReverb';
+import { acousticSampleBank, getAcousticSculptSettings } from './sampleEngine';
 
 export type StrokeType = 'tom' | 'bak' | 'pelang' | 'riz' | 'chain' | 'rest';
 
@@ -109,12 +111,10 @@ export const GROOVE_BY_ID: Record<IranianGrooveId, IranianGrooveSpec> = Object.f
 ) as Record<IranianGrooveId, IranianGrooveSpec>;
 
 /**
- * Pure Web Audio physical-inspired synthesis of authentic Tombak and Daf strokes:
- * - tom: resonant goblet/frame skin pitch drop
- * - bak: sharp edge rim click/snap
- * - pelang: crisp finger-snap accent
- * - riz: rapid 3-hit finger roll
- * - chain: Daf metallic ring shimmer (or subtle rim scrape on Tombak)
+ * Hybrid Studio-Sample + Physical Synthesis of authentic Persian Tombak and Daf strokes:
+ * - Uses 11 real studio round-robin Persian Tombak WAVs (CC BY 3.0) & 6 real Frame Drum WAVs (CC0 1.0)
+ *   layered with authentic Daf metallic ring shimmer (حلقه دف) and Persian Hall Reverb.
+ * - Falls back seamlessly to zero-latency Web Audio synthesis if samples are still decoding or in Physical v2 mode.
  */
 export function triggerPersianStroke(
   ctx: AudioContext,
@@ -125,11 +125,18 @@ export function triggerPersianStroke(
 ): void {
   if (stroke === 'rest') return;
 
+  const destination = getReverbInputNode(ctx);
   const master = ctx.createGain();
   master.gain.value = Math.max(0.05, Math.min(1, volume));
-  master.connect(ctx.destination);
+  master.connect(destination);
 
-  const playNoiseBurst = (startAt: number, durSec: number, centerHz: number, q: number, level: number) => {
+  const playNoiseBurst = (
+    startAt: number,
+    durSec: number,
+    centerHz: number,
+    q: number,
+    level: number
+  ) => {
     const len = Math.max(64, Math.floor(ctx.sampleRate * durSec));
     const buf = ctx.createBuffer(1, len, ctx.sampleRate);
     const data = buf.getChannelData(0);
@@ -154,8 +161,72 @@ export function triggerPersianStroke(
     src.start(startAt);
   };
 
+  // 1. Try Real Studio Round-Robin Persian Tombak / Frame Drum Sample first!
+  const sculpt = getAcousticSculptSettings();
+  const humanRate = sculpt.humanizeMicroCents ? 0.985 + Math.random() * 0.03 : 1.0;
+
+  if (stroke !== 'chain') {
+    if (stroke === 'riz') {
+      const r1 = acousticSampleBank.getPercussionSampleSync(ctx, instrument, 'riz');
+      const r2 = acousticSampleBank.getPercussionSampleSync(ctx, instrument, 'riz');
+      const r3 = acousticSampleBank.getPercussionSampleSync(ctx, instrument, 'riz');
+      if (r1) {
+        const hits: Array<{ buf: AudioBuffer; dt: number; lvl: number; rate: number }> = [
+          { buf: r1, dt: 0, lvl: 0.72, rate: humanRate * 0.99 },
+          { buf: r2 ?? r1, dt: 0.042, lvl: 0.84, rate: humanRate * 1.03 },
+          { buf: r3 ?? r1, dt: 0.084, lvl: 0.96, rate: humanRate * 0.97 },
+        ];
+        for (const h of hits) {
+          const src = ctx.createBufferSource();
+          src.buffer = h.buf;
+          src.playbackRate.setValueAtTime(h.rate, when + h.dt);
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(h.lvl, when + h.dt);
+          src.connect(g);
+          g.connect(master);
+          src.start(when + h.dt);
+        }
+        if (instrument === 'daf') {
+          playNoiseBurst(when + 0.015, 0.14, 5800, 3.0, 0.18);
+        }
+        return;
+      }
+    } else {
+      const sampleBuf = acousticSampleBank.getPercussionSampleSync(ctx, instrument, stroke);
+      if (sampleBuf) {
+        const src = ctx.createBufferSource();
+        src.buffer = sampleBuf;
+        src.playbackRate.setValueAtTime(humanRate, when);
+
+        // Warm acoustic skin-cavity tone stage
+        const skinEq = ctx.createBiquadFilter();
+        skinEq.type = 'peaking';
+        skinEq.frequency.value = instrument === 'daf' ? 92 : 112;
+        skinEq.Q.value = 1.4;
+        skinEq.gain.value = (sculpt.bodyWarmth - 0.35) * 4.5;
+
+        const crispShelf = ctx.createBiquadFilter();
+        crispShelf.type = 'highshelf';
+        crispShelf.frequency.value = 2600;
+        crispShelf.gain.value = (sculpt.attackCrispness - 0.5) * 4.0;
+
+        src.connect(skinEq);
+        skinEq.connect(crispShelf);
+        crispShelf.connect(master);
+        src.start(when);
+
+        // Authentic Daf metallic chain-ring burst coupled to the frame drum skin!
+        if (instrument === 'daf' && stroke === 'tom') {
+          playNoiseBurst(when + 0.014, 0.17, 5600, 2.8, 0.2);
+          playNoiseBurst(when + 0.032, 0.15, 7900, 3.6, 0.12);
+        }
+        return;
+      }
+    }
+  }
+
+  // 2. Fallback / Explicit Physical Synthesis (and Daf Chain Shimmer stroke)
   if (stroke === 'tom') {
-    // Deep goblet membrane resonance (Tombak ~105Hz -> 72Hz; Daf ~88Hz -> 62Hz)
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
     osc.type = 'sine';
@@ -172,10 +243,8 @@ export function triggerPersianStroke(
     osc.start(when);
     osc.stop(when + 0.28);
 
-    // Soft palm thump transient
     playNoiseBurst(when, 0.04, instrument === 'daf' ? 320 : 480, 1.2, 0.35);
 
-    // Subtle chain resonance on Daf Tom
     if (instrument === 'daf') {
       playNoiseBurst(when + 0.012, 0.14, 5400, 3.2, 0.14);
     }
@@ -205,7 +274,6 @@ export function triggerPersianStroke(
   }
 
   if (stroke === 'riz') {
-    // 3 rapid micro-strokes simulating Persian finger roll (ریز)
     playNoiseBurst(when, 0.03, 2700, 2.2, 0.42);
     playNoiseBurst(when + 0.038, 0.03, 3000, 2.3, 0.48);
     playNoiseBurst(when + 0.076, 0.036, 2500, 2.0, 0.56);
@@ -213,9 +281,20 @@ export function triggerPersianStroke(
   }
 
   if (stroke === 'chain') {
-    // Daf metallic rings / zanjir shimmer
-    playNoiseBurst(when, 0.16, 6200, 2.8, instrument === 'daf' ? 0.52 : 0.25);
-    playNoiseBurst(when + 0.02, 0.14, 8400, 4.0, instrument === 'daf' ? 0.32 : 0.15);
+    // Realistic multi-band Daf metallic rings / zanjir shimmer (+ soft hand tap if sample cached)
+    const handBuf = acousticSampleBank.getPercussionSampleSync(ctx, instrument, 'riz');
+    if (handBuf && instrument === 'daf') {
+      const s = ctx.createBufferSource();
+      s.buffer = handBuf;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.32, when);
+      s.connect(g);
+      g.connect(master);
+      s.start(when);
+    }
+    playNoiseBurst(when, 0.18, 6100, 2.6, instrument === 'daf' ? 0.54 : 0.25);
+    playNoiseBurst(when + 0.018, 0.16, 8300, 3.8, instrument === 'daf' ? 0.36 : 0.15);
+    playNoiseBurst(when + 0.042, 0.13, 10200, 4.2, instrument === 'daf' ? 0.22 : 0.08);
   }
 }
 
@@ -254,6 +333,7 @@ export class IranianPercussionEngine {
   start(): void {
     if (this.timerId !== null) return;
     const ctx = getAudioContext();
+    void acousticSampleBank.preloadPercussion(ctx, this.instrument);
     this.stepIdx = 0;
     this.nextStepTime = ctx.currentTime + 0.05;
 
@@ -264,9 +344,35 @@ export class IranianPercussionEngine {
       while (this.nextStepTime < audioCtx.currentTime + scheduleAheadSec) {
         const idx = this.stepIdx % steps.length;
         const stroke = steps[idx];
-        triggerPersianStroke(audioCtx, this.nextStepTime, stroke, this.instrument, this.volume);
+        const sculpt = getAcousticSculptSettings();
+        // Authentic Persian groove dynamics: Beat 1 (سرضرب) accented, off-beats sculpted naturally
+        const dynAccent =
+          idx === 0
+            ? 1.0
+            : stroke === 'tom'
+              ? 0.9
+              : stroke === 'bak'
+                ? idx % 2 === 1
+                  ? 0.78
+                  : 0.86
+                : stroke === 'riz'
+                  ? 0.88
+                  : 0.82;
+        // Subtle ±3ms organic micro-timing feel when humanize is enabled (never drifts tempo!)
+        const microSwingSec =
+          sculpt.humanizeMicroCents && idx > 0
+            ? (idx % 2 === 1 ? 0.003 : -0.002)
+            : 0;
+        const triggerAt = Math.max(audioCtx.currentTime + 0.002, this.nextStepTime + microSwingSec);
+        triggerPersianStroke(
+          audioCtx,
+          triggerAt,
+          stroke,
+          this.instrument,
+          this.volume * dynAccent
+        );
 
-        const delayMs = Math.max(0, (this.nextStepTime - audioCtx.currentTime) * 1000);
+        const delayMs = Math.max(0, (triggerAt - audioCtx.currentTime) * 1000);
         const cb = this.onStep;
         window.setTimeout(() => cb?.(idx, stroke), delayMs);
 

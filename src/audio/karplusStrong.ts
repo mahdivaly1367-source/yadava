@@ -8,7 +8,14 @@ import type {
 } from '../types/music';
 import { getAudioContext } from './audioContext';
 import { getReverbInputNode } from './hallReverb';
+import { getInstrumentBodyBus, PERSIAN_BODY_IR_SPECS } from './instrumentBodyIR';
 import { expandNoteWithOrnaments } from './ornamentEngine';
+import { acousticSampleBank, getAcousticSculptSettings } from './sampleEngine';
+
+export function preloadInstrumentSamples(instrument: InstrumentId): Promise<boolean> {
+  const ctx = getAudioContext();
+  return acousticSampleBank.preloadInstrument(ctx, instrument);
+}
 
 export interface KarplusSynthOptions {
   frequency: number;
@@ -653,7 +660,10 @@ export function synthesizeKarplusStrongSamples(opts: KarplusSynthOptions): Float
 }
 
 /**
- * Plays a single Persian note using sub-cent accurate physical modeling synthesis.
+ * Plays a single Persian note using Navanegar's Hybrid Acoustic Engine:
+ * 1) Real YIN-calibrated studio multi-samples (or user-imported custom instrument sample)
+ *    with per-instrument Persian body formants, double-course chorus & real-time ornament bends;
+ * 2) Seamless fallback to sub-cent accurate Physical Modeling v2 (or explicit Physical v2 mode).
  */
 export function playPersianNote(
   note: PersianNoteSpec,
@@ -676,15 +686,39 @@ export function playPersianNote(
   const durationSec = options.durationSec ?? 0.9;
   const freq = noteToFrequency(note, a4Hz, koronMode);
   const now = ctx.currentTime + (options.startTimeOffsetSec ?? 0.005);
+  const velocity = options.velocity ?? 0.85;
+  const effectiveOrnament: OrnamentType | undefined =
+    options.enableOrnaments === false ? undefined : options.ornament;
 
+  // 1. Try Real Studio Multi-Sample / Hybrid Acoustic Engine first
+  const sampleStopper = acousticSampleBank.tryPlayRealSampleNote({
+    ctx,
+    frequency: freq,
+    durationSec,
+    instrument: options.instrument,
+    volume: Math.max(0.1, Math.min(1.0, velocity * 0.88)),
+    startTime: now,
+    ornament: effectiveOrnament,
+    prevFreqHz: options.prevFreqHz,
+  });
+
+  if (sampleStopper) {
+    return {
+      frequency: freq,
+      stop: sampleStopper,
+    };
+  }
+
+  // 2. Fallback / Explicit Physical Modeling v2
   const activeSources: AudioBufferSourceNode[] = [];
+  const sculpt = getAcousticSculptSettings();
 
   const events = expandNoteWithOrnaments({
     baseFreqHz: freq,
     durationSec,
     instrument: options.instrument,
     ornament: options.ornament,
-    velocity: options.velocity ?? 0.85,
+    velocity,
     enableOrnaments: options.enableOrnaments ?? true,
     scale: options.scale,
     a4Hz,
@@ -708,11 +742,39 @@ export function playPersianNote(
     const src = ctx.createBufferSource();
     src.buffer = buffer;
 
+    // Sculpt Physical v2 through user's Body Warmth & Crispness tone stage
+    const bodyWarmthFilter = ctx.createBiquadFilter();
+    bodyWarmthFilter.type = 'peaking';
+    bodyWarmthFilter.frequency.value =
+      options.instrument === 'oud'
+        ? 165
+        : options.instrument === 'ney'
+          ? 660
+          : options.instrument === 'kamancheh'
+            ? 380
+            : 230;
+    bodyWarmthFilter.Q.value = 1.6;
+    bodyWarmthFilter.gain.value = (sculpt.bodyWarmth - 0.45) * 6.0;
+
+    const airShelf = ctx.createBiquadFilter();
+    airShelf.type = 'highshelf';
+    airShelf.frequency.value = 3200;
+    airShelf.gain.value = (sculpt.attackCrispness - 0.5) * 5.0;
+
     const masterGain = ctx.createGain();
     masterGain.gain.value = 0.78;
 
-    src.connect(masterGain);
-    masterGain.connect(getReverbInputNode(ctx));
+    src.connect(bodyWarmthFilter);
+    bodyWarmthFilter.connect(airShelf);
+    airShelf.connect(masterGain);
+    if (sculpt.bodyConvolverMix > 0.03) {
+      const bodyMix =
+        PERSIAN_BODY_IR_SPECS[options.instrument].defaultWetMix *
+        (0.35 + sculpt.bodyConvolverMix * 0.9);
+      masterGain.connect(getInstrumentBodyBus(ctx, options.instrument, bodyMix));
+    } else {
+      masterGain.connect(getReverbInputNode(ctx));
+    }
     src.start(now + ev.offsetSec);
     activeSources.push(src);
   }
@@ -732,8 +794,8 @@ export function playPersianNote(
 }
 
 /**
- * Plays a raw frequency in Hz directly through the acoustic Persian synthesizer
- * (used by the Custom Microtonal Temperament Editor for A/B cent comparisons).
+ * Plays a raw frequency in Hz directly through the Hybrid Real-Sample / Physical Persian engine
+ * (used by the Custom Microtonal Temperament Editor & Sound Lab A/B comparisons).
  */
 export function playFrequencyTone(
   frequencyHz: number,
@@ -741,16 +803,33 @@ export function playFrequencyTone(
     instrument: InstrumentId;
     durationSec?: number;
     velocity?: number;
+    ornament?: OrnamentType;
   }
 ): { stop: () => void } {
   const ctx = getAudioContext();
   const dur = options.durationSec ?? 0.95;
+  const velocity = options.velocity ?? 0.82;
+
+  const sampleStopper = acousticSampleBank.tryPlayRealSampleNote({
+    ctx,
+    frequency: frequencyHz,
+    durationSec: dur,
+    instrument: options.instrument,
+    volume: Math.max(0.1, Math.min(1.0, velocity * 0.88)),
+    startTime: ctx.currentTime + 0.01,
+    ornament: options.ornament,
+  });
+  if (sampleStopper) {
+    return { stop: sampleStopper };
+  }
+
   const samples = synthesizeKarplusStrongSamples({
     frequency: frequencyHz,
     sampleRate: ctx.sampleRate,
     durationSec: dur,
     instrument: options.instrument,
-    velocity: options.velocity ?? 0.82,
+    velocity,
+    ornament: options.ornament,
   });
   const buf = ctx.createBuffer(1, samples.length, ctx.sampleRate);
   buf.getChannelData(0).set(samples);

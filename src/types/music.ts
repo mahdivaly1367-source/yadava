@@ -327,3 +327,30 @@ export interface BillingEntitlement {
   webPreviewMode: boolean;
   messageFa: string;
 }
+
+export type SoundEngineMode = 'hybrid_studio' | 'acoustic_samples' | 'physical_v2';
+
+export type SanturMalletType = 'felt' | 'wood';
+
+export interface AcousticSculptSettings {
+  engineMode: SoundEngineMode;
+  bodyWarmth: number; // 0..1
+  attackCrispness: number; // 0..1
+  sympatheticShimmer: number; // 0..1
+  bodyConvolverMix: number; // 0..1 — 14-mode Persian acoustic body IR depth
+  neyBreathiness: number; // 0..1 — Posht-e Dandan air-chiff depth
+  vibratoExpression: number; // 0..1 — delayed organic bow/breath vibrato bloom
+  santurMallet: SanturMalletType; // felt (نمدی) vs bare wood (چوبی)
+  legatoMalesh: boolean; // smooth Persian micro-portamento glide between adjacent phrase notes
+  humanizeMicroCents: boolean;
+}
+
+export interface CustomInstrumentSampleMeta {
+  instrument: InstrumentId;
+  fileName: string;
+  measuredHz: number;
+  durationSec: number;
+  sampleRate: number;
+  createdAt: number;
+}
+

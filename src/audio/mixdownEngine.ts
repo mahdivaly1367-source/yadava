@@ -9,6 +9,7 @@ import type {
 } from '../types/music';
 import { computeDroneFrequencies } from './drone';
 import { applyOfflineHallReverb, type HallReverbPresetId } from './hallReverb';
+import { applyOfflineBodyColor } from './instrumentBodyIR';
 import { synthesizeKarplusStrongSamples } from './karplusStrong';
 import { expandNoteWithOrnaments } from './ornamentEngine';
 import { IRANIAN_GROOVES, type StrokeType } from './percussion';
@@ -172,8 +173,9 @@ export function renderEnsembleMixdownWav(options: EnsembleMixdownOptions): Ensem
   const totalSamples = Math.max(sampleRate, Math.ceil(contentDurationSec * sampleRate));
   const monoBus = new Float32Array(totalSamples);
 
-  // 1. Reference Gusheh Track
+  // 1. Reference Gusheh Track (sculpted through the instrument's Physical Acoustic Body IR!)
   if (options.melodyVolume > 0.005) {
+    const melodyTrack = new Float32Array(totalSamples);
     let cursorSec = 0.08;
     let prevHz: number | undefined;
     for (const note of options.gusheh.melody) {
@@ -203,11 +205,16 @@ export function renderEnsembleMixdownWav(options: EnsembleMixdownOptions): Ensem
         const startIdx = Math.floor((cursorSec + ev.offsetSec) * sampleRate);
         const gain = ev.velocity * options.melodyVolume * 0.72;
         for (let i = 0; i < pcm.length && startIdx + i < totalSamples; i++) {
-          if (startIdx + i >= 0) monoBus[startIdx + i] += pcm[i] * gain;
+          if (startIdx + i >= 0) melodyTrack[startIdx + i] += pcm[i] * gain;
         }
       }
       prevHz = baseHz;
       cursorSec += durSec;
+    }
+
+    const sculptedMelody = applyOfflineBodyColor(melodyTrack, sampleRate, options.instrument, 0.36);
+    for (let i = 0; i < totalSamples; i++) {
+      monoBus[i] += sculptedMelody[i];
     }
   }
 

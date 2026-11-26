@@ -6,6 +6,7 @@ import type {
   PersianNoteSpec,
 } from '../types/music';
 import { getAudioContext } from './audioContext';
+import { getReverbInputNode } from './hallReverb';
 
 export interface DroneConfig {
   baseNote: PersianNoteSpec;
@@ -78,13 +79,20 @@ export class PersianDroneEngine {
       config.timbre === 'tanbur' ? 880 : config.timbre === 'kamancheh' ? 1280 : 620;
     filter.Q.value = config.timbre === 'kamancheh' ? 1.8 : 1.0;
 
-    // Warm wooden acoustic body formant filter for realistic Persian drone timbre
+    // Warm dual-formant wooden/skin acoustic body resonator for organic Persian drone timbre
     const bodyFormant = ctx.createBiquadFilter();
     bodyFormant.type = 'peaking';
     bodyFormant.frequency.value =
-      config.timbre === 'tanbur' ? 280 : config.timbre === 'kamancheh' ? 480 : 640;
-    bodyFormant.Q.value = 1.4;
-    bodyFormant.gain.value = 3.8;
+      config.timbre === 'tanbur' ? 235 : config.timbre === 'kamancheh' ? 375 : 640;
+    bodyFormant.Q.value = 1.6;
+    bodyFormant.gain.value = 4.2;
+
+    const airFormant = ctx.createBiquadFilter();
+    airFormant.type = 'peaking';
+    airFormant.frequency.value =
+      config.timbre === 'tanbur' ? 680 : config.timbre === 'kamancheh' ? 1320 : 1850;
+    airFormant.Q.value = 2.0;
+    airFormant.gain.value = 2.2;
 
     // Gentle acoustic breath modulation (0.18 Hz slow filter shimmer so drone sounds alive & organic)
     const lfo = ctx.createOscillator();
@@ -97,8 +105,9 @@ export class PersianDroneEngine {
     lfo.start(now);
 
     filter.connect(bodyFormant);
-    bodyFormant.connect(masterGain);
-    masterGain.connect(ctx.destination);
+    bodyFormant.connect(airFormant);
+    airFormant.connect(masterGain);
+    masterGain.connect(getReverbInputNode(ctx));
 
     const freqs = computeDroneFrequencies(config);
     const oscs: OscillatorNode[] = [];

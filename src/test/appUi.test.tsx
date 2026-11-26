@@ -85,6 +85,12 @@ describe('Navanegar App Integration UI Smoke Test', () => {
     fireEvent.click(screen.getByText('کوک با گوش'));
     expect(await screen.findByText(/آزمایشگاه «کوک کردن با گوش»/)).toBeInTheDocument();
 
+    // Acoustic Realism v2 Sound Lab (45 Real Studio Samples + Custom Sample Importer)
+    fireEvent.click(screen.getByText('آزمایشگاه صدا و سمپل واقعی'));
+    expect(await screen.findByText(/آزمایشگاه صدا و سمپل آکوستیک واقعی/)).toBeInTheDocument();
+    expect(screen.getByText(/هیبرید سمپل واقعی \+ بدنه ایرانی/)).toBeInTheDocument();
+    expect(screen.getByText(/بارگذاری سمپل واقعی ساز شخصی خودتان/)).toBeInTheDocument();
+
     // Phase-4 Studio Labs: Score Editor, A/B Traditions, Ensemble Mixdown, Dastgah Quiz
     fireEvent.click(screen.getByText('نت‌نگار ربع‌پرده (آهنگ‌ساز)'));
     expect(await screen.findByText(/ویرایشگر و نت‌نگار تعاملی ربع‌پرده/)).toBeInTheDocument();
