@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import {
   CheckCircle2,
   Crown,
+  GraduationCap,
   RefreshCw,
   ShieldCheck,
+  Sparkles,
   X,
 } from 'lucide-react';
 import {
+  getDiscountPercent,
   isWebPreviewBillingAllowed,
   PRODUCT_CATALOG,
 } from '../services/billing';
@@ -118,31 +121,32 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
             <ul className="mt-2.5 space-y-2 text-xs text-slate-600 dark:text-slate-300">
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-500" />
-                دستگاه شور، آواز ابوعطا و دستگاه ماهور (۴۳ گوشه)
+                دستگاه شور، آواز ابوعطا و دستگاه ماهور (۴۳ گوشه کامل)
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-500" />
-                تیونر هوشمند ساز و مترونوم دقیق Web Audio
+                تیونر ربع‌پرده (کُرُن و سُری) + مترونوم تنبک و دف واقعی
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-500" />
-                آزمون تعیین سطح شنیداری و کوک صوتی
+                آزمایشگاه صدای ۵۴ سمپل واقعی ۷ ساز ایرانی + سمپل شخصی
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-500" />
-                ذخیره تا ۲ قطعه صوتی در بایگانی محلی
+                آزمون تعیین سطح شنیداری و ذخیره تا ۲ قطعه صوتی
               </li>
             </ul>
           </div>
 
           <div className="rounded-2xl border border-amber-500/40 bg-gradient-to-b from-amber-500/10 to-teal-500/10 p-4 dark:from-amber-500/15 dark:to-teal-500/10">
-            <div className="text-xs font-extrabold text-amber-700 dark:text-amber-300">
-              نسخه کامل (Pro)
+            <div className="flex items-center gap-1.5 text-xs font-extrabold text-amber-700 dark:text-amber-300">
+              <Sparkles className="h-3.5 w-3.5" />
+              نسخه کامل استودیویی (Pro)
             </div>
             <ul className="mt-2.5 space-y-2 text-xs text-slate-700 dark:text-slate-200">
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
-                آزادسازی تمامی ۱۲ نظام و ۱۷۳ گوشه ردیف
+                آزادسازی تمامی ۱۲ نظام و ۱۷۳ گوشه ردیف + مقایسه روایت‌ها
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
@@ -150,11 +154,11 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
-                نقشه کامل مدولاسیون و گذرهای مُدال میان ۱۲ دستگاه
+                حالت صبر (Wait Mode)، نقشه کامل مدولاسیون و نت‌نگار چاپ A4
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
-                بایگانی نامحدود ضبط‌های صوتی و تحلیل کوک
+                بایگانی نامحدود ضبط‌ها و خروجی میکس استودیویی چندلایه (WAV)
               </li>
             </ul>
           </div>
@@ -167,6 +171,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
               const item = PRODUCT_CATALOG[sku];
               const isLifetime = sku === 'navanegar_pro_lifetime';
               const isOwned = entitlement.isPro && entitlement.productId === sku;
+              const discountPct = getDiscountPercent(item.priceToman, item.regularPriceToman);
 
               return (
                 <div
@@ -178,19 +183,40 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
                   }`}
                 >
                   <div>
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="text-sm font-extrabold text-slate-900 dark:text-white">
                         {item.titleFa}
                       </span>
-                      {isLifetime && (
-                        <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-slate-950">
-                          پیشنهاد ویژه
-                        </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          isLifetime
+                            ? 'bg-amber-500 text-slate-950'
+                            : 'bg-teal-500/15 text-teal-700 dark:text-teal-300'
+                        }`}
+                      >
+                        {item.badgeFa}
+                      </span>
+                    </div>
+
+                    <div className="mt-2.5 flex flex-wrap items-baseline gap-2">
+                      <span className="text-xl font-black text-teal-700 dark:text-teal-300">
+                        {formatToman(item.priceToman)}
+                      </span>
+                      {discountPct !== null && (
+                        <>
+                          <span className="text-xs font-semibold text-slate-400 line-through">
+                            {formatToman(item.regularPriceToman)}
+                          </span>
+                          <span className="rounded-md bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-extrabold text-rose-600 dark:text-rose-300">
+                            {toPersianDigits(discountPct)}٪ تخفیف
+                          </span>
+                        </>
                       )}
                     </div>
-                    <div className="mt-2 text-xl font-black text-teal-700 dark:text-teal-300">
-                      {formatToman(item.priceToman)}
-                    </div>
+
+                    <p className="mt-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+                      {item.anchorNoteFa}
+                    </p>
                     <p className="mt-1.5 text-xs leading-5 text-slate-500 dark:text-slate-400">
                       {item.subtitleFa}
                     </p>
@@ -221,6 +247,19 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
               );
             }
           )}
+        </div>
+
+        {/* Conservatory / Teacher Volume Tier Note */}
+        <div className="mt-3 flex items-start gap-2.5 rounded-2xl border border-teal-500/25 bg-teal-500/5 px-3.5 py-2.5 text-[11px] leading-5 text-slate-600 dark:text-slate-300">
+          <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-teal-600 dark:text-teal-400" />
+          <span>
+            <strong className="text-slate-800 dark:text-slate-100">
+              ویژه اساتید و آموزشگاه‌های موسیقی:
+            </strong>{' '}
+            بسته ۱۰ کاربره نسخه دائمی با تخفیف گروهی{' '}
+            <strong className="text-teal-700 dark:text-teal-300">۲٬۲۰۰٬۰۰۰ تومان</strong> (معادل
+            ۲۲۰٬۰۰۰ تومان برای هر هنرجو) قابل ارائه است.
+          </span>
         </div>
 
         {/* Footer Security Note & Restore */}

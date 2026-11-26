@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   FREE_MAX_RECORDINGS,
+  getDiscountPercent,
   hydrateEntitlement,
   isWebPreviewBillingAllowed,
   PRODUCT_CATALOG,
@@ -44,11 +45,31 @@ afterEach(() => {
 });
 
 describe('Freemium Catalog, Dual-Market Android Billing & Anti-Tamper Security', () => {
-  it('defines exact SKUs, Toman prices, and Free recording cap', () => {
+  it('defines exact SKUs, 1405 market Toman launch/regular prices, discounts, and Free recording cap', () => {
     expect(FREE_MAX_RECORDINGS).toBe(2);
-    expect(PRODUCT_CATALOG.navanegar_pro_lifetime.priceToman).toBe(249_000);
-    expect(PRODUCT_CATALOG.navanegar_pro_quarterly.priceToman).toBe(99_000);
+    expect(PRODUCT_CATALOG.navanegar_pro_lifetime.priceToman).toBe(299_000);
+    expect(PRODUCT_CATALOG.navanegar_pro_lifetime.regularPriceToman).toBe(449_000);
+    expect(
+      getDiscountPercent(
+        PRODUCT_CATALOG.navanegar_pro_lifetime.priceToman,
+        PRODUCT_CATALOG.navanegar_pro_lifetime.regularPriceToman
+      )
+    ).toBe(33);
+
+    expect(PRODUCT_CATALOG.navanegar_pro_quarterly.priceToman).toBe(149_000);
+    expect(PRODUCT_CATALOG.navanegar_pro_quarterly.regularPriceToman).toBe(189_000);
+    expect(
+      getDiscountPercent(
+        PRODUCT_CATALOG.navanegar_pro_quarterly.priceToman,
+        PRODUCT_CATALOG.navanegar_pro_quarterly.regularPriceToman
+      )
+    ).toBe(21);
     expect(PRODUCT_CATALOG.navanegar_pro_quarterly.durationDays).toBe(90);
+
+    // Edge cases for discount calculation
+    expect(getDiscountPercent(299_000, 299_000)).toBeNull();
+    expect(getDiscountPercent(299_000, 200_000)).toBeNull();
+    expect(getDiscountPercent(299_000, null)).toBeNull();
   });
 
   it('prevents Pro activation via localStorage tampering and disables web preview on Android', async () => {
