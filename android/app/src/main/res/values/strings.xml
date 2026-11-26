@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">نوانگار</string>
+    <string name="title_activity_main">نوانگار</string>
+    <string name="package_name">ir.navanegar.radif</string>
+    <string name="custom_url_scheme">ir.navanegar.radif</string>
+</resources>
