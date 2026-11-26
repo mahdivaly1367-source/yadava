@@ -1,0 +1,278 @@
+{
+  "version": "2.1.0",
+  "sampleRate": 22050,
+  "percussion": {
+    "tombak": {
+      "license": "CC-BY-3.0",
+      "source": "sinak/zarbsaz (Tombak, Alireza.mp3 by sonsbcnintercultural, Freesound #256123)",
+      "strokes": {
+        "tom": [
+          "tombak/tom_1.wav",
+          "tombak/tom_2.wav",
+          "tombak/tom_3.wav"
+        ],
+        "bak": [
+          "tombak/bak_1.wav",
+          "tombak/bak_2.wav",
+          "tombak/bak_3.wav"
+        ],
+        "pelang": [
+          "tombak/pelang_1.wav",
+          "tombak/pelang_2.wav"
+        ],
+        "riz": [
+          "tombak/riz_1.wav",
+          "tombak/riz_2.wav",
+          "tombak/riz_3.wav"
+        ]
+      }
+    },
+    "daf": {
+      "license": "CC0-1.0",
+      "source": "Versilian Community Sample Library (sgossner/VCSL) \u2014 Frame Drum",
+      "strokes": {
+        "tom": [
+          "daf/tom_1.wav",
+          "daf/tom_2.wav"
+        ],
+        "bak": [
+          "daf/bak_1.wav",
+          "daf/bak_2.wav"
+        ],
+        "pelang": [
+          "daf/pelang_1.wav"
+        ],
+        "riz": [
+          "daf/hand_1.wav"
+        ]
+      }
+    }
+  },
+  "melodicBanks": {
+    "kamancheh": {
+      "license": "CC0-1.0",
+      "source": "sfzinstruments/aliexpress-erhu (close-miked stretched-skin spike fiddle)",
+      "sustained": true,
+      "zones": [
+        {
+          "file": "kamancheh/z1_d4.wav",
+          "concertNote": "D4",
+          "measuredHz": 289.656,
+          "durationSec": 1.65,
+          "loopStartSec": 0.46236,
+          "loopEndSec": 1.28721
+        },
+        {
+          "file": "kamancheh/z2_g4.wav",
+          "concertNote": "G4",
+          "measuredHz": 392.042,
+          "durationSec": 1.65,
+          "loopStartSec": 0.46245,
+          "loopEndSec": 1.28653
+        },
+        {
+          "file": "kamancheh/z3_b4.wav",
+          "concertNote": "B4",
+          "measuredHz": 496.584,
+          "durationSec": 1.65,
+          "loopStartSec": 0.46259,
+          "loopEndSec": 1.28617
+        },
+        {
+          "file": "kamancheh/z4_e5.wav",
+          "concertNote": "E5",
+          "measuredHz": 655.655,
+          "durationSec": 1.65,
+          "loopStartSec": 0.46281,
+          "loopEndSec": 1.28594
+        },
+        {
+          "file": "kamancheh/z5_a5.wav",
+          "concertNote": "A5",
+          "measuredHz": 890.461,
+          "durationSec": 1.65,
+          "loopStartSec": 0.46295,
+          "loopEndSec": 1.28721
+        }
+      ]
+    },
+    "santur": {
+      "license": "CC0-1.0",
+      "source": "Versilian Community Sample Library (sgossner/VCSL) \u2014 Acoustic Zither (Psaltery + Dan Tranh)",
+      "sustained": false,
+      "zones": [
+        {
+          "file": "santur/z1_ds4.wav",
+          "concertNote": "D#4",
+          "measuredHz": 312.666,
+          "durationSec": 1.45
+        },
+        {
+          "file": "santur/z2_as4.wav",
+          "concertNote": "A#4",
+          "measuredHz": 467.755,
+          "durationSec": 1.45
+        },
+        {
+          "file": "santur/z3_d5.wav",
+          "concertNote": "D5",
+          "measuredHz": 587.734,
+          "durationSec": 1.45
+        },
+        {
+          "file": "santur/z4_fs5.wav",
+          "concertNote": "F#5",
+          "measuredHz": 740.471,
+          "durationSec": 1.45
+        },
+        {
+          "file": "santur/z5_as5.wav",
+          "concertNote": "A#5",
+          "measuredHz": 932.488,
+          "durationSec": 1.45
+        },
+        {
+          "file": "santur/z6_d6.wav",
+          "concertNote": "D6",
+          "measuredHz": 1174.76,
+          "durationSec": 1.45
+        }
+      ]
+    },
+    "lute": {
+      "license": "CC0-1.0",
+      "source": "Versilian Community Sample Library (sgossner/VCSL) \u2014 Long-Neck Wooden Lute (Strumstick)",
+      "sustained": false,
+      "zones": [
+        {
+          "file": "lute/z1_d3.wav",
+          "concertNote": "D3",
+          "measuredHz": 147.399,
+          "durationSec": 1.35
+        },
+        {
+          "file": "lute/z2_a3.wav",
+          "concertNote": "A3",
+          "measuredHz": 220.607,
+          "durationSec": 1.35
+        },
+        {
+          "file": "lute/z3_d4.wav",
+          "concertNote": "D4",
+          "measuredHz": 294.519,
+          "durationSec": 1.35
+        },
+        {
+          "file": "lute/z4_g4.wav",
+          "concertNote": "G4",
+          "measuredHz": 392.776,
+          "durationSec": 1.35
+        },
+        {
+          "file": "lute/z5_cs5.wav",
+          "concertNote": "C#5",
+          "measuredHz": 555.202,
+          "durationSec": 1.35
+        },
+        {
+          "file": "lute/z6_g5.wav",
+          "concertNote": "G5",
+          "measuredHz": 785.656,
+          "durationSec": 1.35
+        }
+      ]
+    },
+    "oud": {
+      "license": "CC0-1.0",
+      "source": "Versilian Community Sample Library (sgossner/VCSL) \u2014 Warm Plucked Wooden Chordophone (Dan Tranh)",
+      "sustained": false,
+      "zones": [
+        {
+          "file": "oud/z1_cs3.wav",
+          "concertNote": "C#3",
+          "measuredHz": 140.104,
+          "durationSec": 1.35
+        },
+        {
+          "file": "oud/z2_gs3.wav",
+          "concertNote": "G#3",
+          "measuredHz": 209.115,
+          "durationSec": 1.35
+        },
+        {
+          "file": "oud/z3_ds4.wav",
+          "concertNote": "D#4",
+          "measuredHz": 312.763,
+          "durationSec": 1.35
+        },
+        {
+          "file": "oud/z4_gs4.wav",
+          "concertNote": "G#4",
+          "measuredHz": 414.991,
+          "durationSec": 1.35
+        },
+        {
+          "file": "oud/z5_ds5.wav",
+          "concertNote": "D#5",
+          "measuredHz": 624.703,
+          "durationSec": 1.35
+        }
+      ]
+    },
+    "ney": {
+      "license": "CC0-1.0",
+      "source": "Versilian Community Sample Library (sgossner/VCSL) \u2014 Wooden Edge-Blown Flute (Bass & Tenor Recorder)",
+      "sustained": true,
+      "zones": [
+        {
+          "file": "ney/z1_fs3.wav",
+          "concertNote": "F#3",
+          "measuredHz": 184.568,
+          "durationSec": 1.65,
+          "loopStartSec": 0.46426,
+          "loopEndSec": 1.28834
+        },
+        {
+          "file": "ney/z2_c4.wav",
+          "concertNote": "C4",
+          "measuredHz": 260.621,
+          "durationSec": 1.65,
+          "loopStartSec": 0.46376,
+          "loopEndSec": 1.28834
+        },
+        {
+          "file": "ney/z3_fs4.wav",
+          "concertNote": "F#4",
+          "measuredHz": 368.972,
+          "durationSec": 1.65,
+          "loopStartSec": 0.46227,
+          "loopEndSec": 1.28617
+        },
+        {
+          "file": "ney/z4_c5.wav",
+          "concertNote": "C5",
+          "measuredHz": 522.05,
+          "durationSec": 1.65,
+          "loopStartSec": 0.46249,
+          "loopEndSec": 1.28635
+        },
+        {
+          "file": "ney/z5_fs5.wav",
+          "concertNote": "F#5",
+          "measuredHz": 740.973,
+          "durationSec": 1.65,
+          "loopStartSec": 0.46308,
+          "loopEndSec": 1.2863
+        },
+        {
+          "file": "ney/z6_c6.wav",
+          "concertNote": "C6",
+          "measuredHz": 1050.201,
+          "durationSec": 1.65,
+          "loopStartSec": 0.46277,
+          "loopEndSec": 1.28739
+        }
+      ]
+    }
+  }
+}

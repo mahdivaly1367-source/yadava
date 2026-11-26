@@ -327,3 +327,23 @@ export interface BillingEntitlement {
   webPreviewMode: boolean;
   messageFa: string;
 }
+
+export type SoundEngineMode = 'hybrid_studio' | 'acoustic_samples' | 'physical_v2';
+
+export interface AcousticSculptSettings {
+  engineMode: SoundEngineMode;
+  bodyWarmth: number; // 0..1
+  attackCrispness: number; // 0..1
+  sympatheticShimmer: number; // 0..1
+  humanizeMicroCents: boolean;
+}
+
+export interface CustomInstrumentSampleMeta {
+  instrument: InstrumentId;
+  fileName: string;
+  measuredHz: number;
+  durationSec: number;
+  sampleRate: number;
+  createdAt: number;
+}
+

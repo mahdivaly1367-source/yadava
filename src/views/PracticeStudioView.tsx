@@ -40,8 +40,14 @@ import {
 import {
   playGushehPhrase,
   playPersianNote,
+  preloadInstrumentSamples,
   type PhrasePlaybackHandle,
 } from '../audio/karplusStrong';
+import {
+  acousticSampleBank,
+  getSoundEngineMode,
+  setSoundEngineMode,
+} from '../audio/sampleEngine';
 import {
   generatePrintableSheetHtml,
   openPrintableSheetWindow,
@@ -51,6 +57,11 @@ import { InstrumentBridgeCanvas } from '../components/InstrumentBridgeCanvas';
 import { PersianStaffNotation } from '../components/PersianStaffNotation';
 import { PitchContourCanvas } from '../components/PitchContourCanvas';
 
+const AcousticSoundLabPanel = lazy(() =>
+  import('../components/AcousticSoundLabPanel').then((m) => ({
+    default: m.AcousticSoundLabPanel,
+  }))
+);
 const AudioSlowdownerPanel = lazy(() =>
   import('../components/AudioSlowdownerPanel').then((m) => ({ default: m.AudioSlowdownerPanel }))
 );
@@ -150,6 +161,7 @@ import type {
   PracticeSessionRecord,
   RadifTraditionId,
   SavedRecordingMeta,
+  SoundEngineMode,
   TeacherAssignment,
 } from '../types/music';
 import {
@@ -205,6 +217,7 @@ const INITIAL_FRAME: PitchAnalysisFrame = {
 
 type StudioToolTab =
   | 'bridge'
+  | 'sound_lab'
   | 'call_response'
   | 'prosody_avaz'
   | 'blind_tuning'
@@ -262,10 +275,23 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
   const [reverbPreset, setReverbPreset] = useState<HallReverbPresetId>(() =>
     getActiveHallReverbPreset()
   );
+  const [soundEngineMode, setSoundEngineModeState] = useState<SoundEngineMode>(() =>
+    getSoundEngineMode()
+  );
 
   const handleChangeReverbPreset = useCallback((next: HallReverbPresetId) => {
     setReverbPreset(next);
     setActiveHallReverbPreset(next);
+  }, []);
+
+  const handleChangeSoundEngineMode = useCallback((next: SoundEngineMode) => {
+    setSoundEngineModeState(next);
+    setSoundEngineMode(next);
+  }, []);
+
+  useEffect(() => {
+    void acousticSampleBank.ensureManifest();
+    void acousticSampleBank.ensureCustomSamplesLoaded();
   }, []);
 
   const effectiveGusheh = useMemo(
@@ -1135,6 +1161,18 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
             </button>
 
             <select
+              value={soundEngineMode}
+              onChange={(e) => handleChangeSoundEngineMode(e.target.value as SoundEngineMode)}
+              aria-label="موتور صوتی و سمپل واقعی سازها"
+              title="انتخاب موتور صوتی: هیبرید سمپل واقعی / سمپل خالص / سنتز فیزیکی v2"
+              className="rounded-xl border border-teal-400/45 bg-teal-500/10 px-2 py-2 text-[11px] font-bold text-teal-800 dark:bg-teal-950/60 dark:text-teal-200"
+            >
+              <option value="hybrid_studio">صدا: هیبرید سمپل واقعی</option>
+              <option value="acoustic_samples">صدا: سمپل استودیویی خالص</option>
+              <option value="physical_v2">صدا: سنتز فیزیکی v2</option>
+            </select>
+
+            <select
               value={reverbPreset}
               onChange={(e) => handleChangeReverbPreset(e.target.value as HallReverbPresetId)}
               aria-label="فضای آکوستیک و ریورب تالار ایرانی"
@@ -1172,13 +1210,25 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
                 type="button"
                 onClick={() => {
                   onChangeInstrument(inst);
-                  playPersianNote(effectiveGusheh.shahed, {
-                    instrument: inst,
-                    durationSec: 0.85,
-                    a4Hz,
-                    koronMode,
-                    scale: effectiveGusheh.scale,
-                  });
+                  const playPreview = () =>
+                    playPersianNote(effectiveGusheh.shahed, {
+                      instrument: inst,
+                      durationSec: 0.85,
+                      a4Hz,
+                      koronMode,
+                      scale: effectiveGusheh.scale,
+                    });
+                  if (
+                    soundEngineMode === 'physical_v2' ||
+                    acousticSampleBank.isInstrumentReady(inst)
+                  ) {
+                    playPreview();
+                  } else {
+                    void Promise.race([
+                      preloadInstrumentSamples(inst),
+                      new Promise((r) => window.setTimeout(r, 180)),
+                    ]).then(() => playPreview());
+                  }
                 }}
                 className={`rounded-xl px-2.5 py-1.5 text-xs font-bold transition ${
                   instrument === inst
@@ -1625,6 +1675,7 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
         {(
           [
             { id: 'bridge', labelFa: 'پل بصری و انگشت‌گذاری' },
+            { id: 'sound_lab', labelFa: 'آزمایشگاه صدا و سمپل واقعی' },
             { id: 'score_editor', labelFa: 'نت‌نگار ربع‌پرده (آهنگ‌ساز)' },
             { id: 'tradition_ab', labelFa: 'مقایسه روایت‌ها (A/B)' },
             { id: 'mixdown', labelFa: 'میکسر همنوازی (WAV)' },
@@ -1857,6 +1908,17 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
             a4Hz={a4Hz}
             koronMode={koronMode}
           />
+        )}
+
+        {activeToolTab === 'sound_lab' && (
+          <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-4 sm:p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/90">
+            <AcousticSoundLabPanel
+              activeInstrument={instrument}
+              onSelectInstrument={onChangeInstrument}
+              a4Hz={a4Hz}
+              koronMode={koronMode}
+            />
+          </div>
         )}
 
         {musicStandOpen && (
