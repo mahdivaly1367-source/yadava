@@ -18,6 +18,13 @@ import type {
   PersianNoteSpec,
 } from '../types/music';
 import { buildMelodyFingeringGuide } from '../core/fingeringGuide';
+import {
+  computeSanturRetunePlan,
+  OUD_5_COURSES,
+  TANBUR_14_FRET_OFFSETS_CENTS,
+  TANBUR_TUNINGS,
+} from '../core/santurRetuneGuide';
+import { RADIF_SYSTEMS } from '../data/radifData';
 import { toPersianDigits } from '../utils/persian';
 
 interface InstrumentBridgeCanvasProps {
@@ -36,7 +43,7 @@ export const InstrumentBridgeCanvas: React.FC<InstrumentBridgeCanvasProps> = ({
   koronMode,
 }) => {
   const [viewInstrument, setViewInstrument] = useState<
-    'tar_setar' | 'santur' | 'kamancheh' | 'ney'
+    'tar_setar' | 'santur' | 'kamancheh' | 'ney' | 'tanbur' | 'oud'
   >(
     instrument === 'santur'
       ? 'santur'
@@ -44,7 +51,15 @@ export const InstrumentBridgeCanvas: React.FC<InstrumentBridgeCanvasProps> = ({
       ? 'ney'
       : instrument === 'kamancheh'
       ? 'kamancheh'
+      : instrument === 'tanbur'
+      ? 'tanbur'
+      : instrument === 'oud'
+      ? 'oud'
       : 'tar_setar'
+  );
+  const [tanburTuningId, setTanburTuningId] = useState<'tarz' | 'sheikh_amiri' | 'majnuni'>('tarz');
+  const [retuneTargetDastgah, setRetuneTargetDastgah] = useState<string>(
+    gusheh.dastgahId === 'homayun' ? 'shur' : 'homayun'
   );
   const [lastClickedLabel, setLastClickedLabel] = useState<string>('');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -53,8 +68,17 @@ export const InstrumentBridgeCanvas: React.FC<InstrumentBridgeCanvasProps> = ({
     if (instrument === 'santur') setViewInstrument('santur');
     else if (instrument === 'ney') setViewInstrument('ney');
     else if (instrument === 'kamancheh') setViewInstrument('kamancheh');
+    else if (instrument === 'tanbur') setViewInstrument('tanbur');
+    else if (instrument === 'oud') setViewInstrument('oud');
     else setViewInstrument('tar_setar');
   }, [instrument]);
+
+  const santurRetunePlan = useMemo(
+    () => computeSanturRetunePlan(gusheh.dastgahId, retuneTargetDastgah, koronMode),
+    [gusheh.dastgahId, retuneTargetDastgah, koronMode]
+  );
+  const activeTanburTuning =
+    TANBUR_TUNINGS.find((t) => t.id === tanburTuningId) ?? TANBUR_TUNINGS[0];
 
   const fingeringGuide = useMemo(
     () => buildMelodyFingeringGuide(gusheh.melody, a4Hz, koronMode),
@@ -309,9 +333,13 @@ export const InstrumentBridgeCanvas: React.FC<InstrumentBridgeCanvasProps> = ({
             {viewInstrument === 'tar_setar'
               ? 'دسته لگاریتمی ۲۴ پرده‌ای تار و سه‌تار — روی هر پرده کلیک کنید تا بنوازد'
               : viewInstrument === 'santur'
-              ? '۲۷ خرک سنتور (۹ زرد، ۹ سفید، ۹ پشت‌خرک) متناسب با کوک دستگاه فعال'
+              ? '۲۷ خرک سنتور (۹ زرد، ۹ سفید، ۹ پشت‌خرک) + راهنمای جابه‌جایی خرک بین دستگاه‌ها'
               : viewInstrument === 'kamancheh'
               ? 'دسته بدون پرده ۴ سیم کمانچه با نقاط انگشت‌گذاری میلی‌متری کُرُن و سُری'
+              : viewInstrument === 'tanbur'
+              ? 'دسته ۱۴ پرده‌ای تنبور اصیل با کوک‌های طرز، شیخ‌امیری و مجنونی'
+              : viewInstrument === 'oud'
+              ? 'دسته بدون پرده ۵ سیم جفت عود (بربت) با کوک استاندارد ایرانی (دو–سل–ر–لا–فا)'
               : 'نقشه انگشت‌گذاری نی هفت‌بند (۵ سوراخ جلو + ۱ سوراخ شست پشت و نیم‌سوراخ کُرُن)'}
           </p>
         </div>
@@ -321,6 +349,8 @@ export const InstrumentBridgeCanvas: React.FC<InstrumentBridgeCanvasProps> = ({
               { id: 'tar_setar', label: 'تار / سه‌تار', activeCls: 'bg-teal-600 text-white' },
               { id: 'santur', label: 'سنتور (۲۷ خرک)', activeCls: 'bg-amber-600 text-white' },
               { id: 'kamancheh', label: 'کمانچه (۴ سیم)', activeCls: 'bg-indigo-600 text-white' },
+              { id: 'oud', label: 'عود (۵ سیم)', activeCls: 'bg-rose-600 text-white' },
+              { id: 'tanbur', label: 'تنبور (۱۴ پرده)', activeCls: 'bg-violet-600 text-white' },
               { id: 'ney', label: 'نی هفت‌بند', activeCls: 'bg-emerald-600 text-white' },
             ] as const
           ).map((tab) => (
@@ -454,7 +484,7 @@ export const InstrumentBridgeCanvas: React.FC<InstrumentBridgeCanvasProps> = ({
                           type="button"
                           onClick={() => {
                             playPersianNote(matched.note, {
-                              instrument: 'ney',
+                              instrument: 'kamancheh',
                               durationSec: 1.15,
                               a4Hz,
                               koronMode,
@@ -566,7 +596,7 @@ export const InstrumentBridgeCanvas: React.FC<InstrumentBridgeCanvasProps> = ({
             })}
           </div>
         </div>
-      ) : (
+      ) : viewInstrument === 'santur' ? (
         <div className="space-y-2.5 rounded-xl bg-gradient-to-b from-amber-950/90 to-stone-950 p-3 text-white">
           {(
             [
@@ -630,6 +660,175 @@ export const InstrumentBridgeCanvas: React.FC<InstrumentBridgeCanvasProps> = ({
               </div>
             );
           })}
+
+          {/* Interactive Santur Bridge Retuning Guide (راهنمای تغییر کوک خرک‌های سنتور) */}
+          <div className="mt-3 rounded-xl border border-amber-400/35 bg-black/35 p-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-xs font-extrabold text-amber-200">
+                راهنمای جابه‌جایی خرک‌های سنتور ({santurRetunePlan.fromNameFa} ← {santurRetunePlan.toNameFa})
+              </div>
+              <label className="flex items-center gap-1.5 text-[11px] text-amber-100">
+                <span>تبدیل کوک به:</span>
+                <select
+                  value={retuneTargetDastgah}
+                  onChange={(e) => setRetuneTargetDastgah(e.target.value)}
+                  className="rounded-lg border border-amber-400/40 bg-slate-900 px-2 py-1 text-[11px] font-bold text-white"
+                >
+                  {RADIF_SYSTEMS.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nameFa}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <p className="text-[11px] text-amber-100/90">{santurRetunePlan.summaryFa}</p>
+            {santurRetunePlan.shifts.length > 0 && (
+              <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                {santurRetunePlan.shifts.slice(0, 10).map((shift, sIdx) => (
+                  <div
+                    key={`${shift.courseLabelFa}_${sIdx}`}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[10px]"
+                  >
+                    <span className="font-bold text-amber-200">{shift.courseLabelFa}</span>
+                    <span className="text-slate-200">{shift.instructionFa}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {viewInstrument === 'tanbur' && (
+        <div className="rounded-xl bg-gradient-to-b from-violet-950/90 to-slate-950 p-3.5 text-white space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs font-extrabold text-violet-200">
+              دسته ۱۴ پرده‌ای تنبور اصیل — {activeTanburTuning.nameFa} ({activeTanburTuning.intervalFa})
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {TANBUR_TUNINGS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTanburTuningId(t.id)}
+                  className={`rounded-lg px-2 py-1 text-[10px] font-bold cursor-pointer ${
+                    tanburTuningId === t.id
+                      ? 'bg-violet-500 text-white'
+                      : 'bg-white/10 text-violet-200 hover:bg-white/20'
+                  }`}
+                >
+                  {t.nameFa}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
+            {TANBUR_14_FRET_OFFSETS_CENTS.map((f) => {
+              const baseCents = noteToCentsFromC0(activeTanburTuning.upperNote, koronMode);
+              const totalCents = baseCents + f.cents;
+              const freq = a4Hz * Math.pow(2, (totalCents - (4 * 1200 + 900)) / 1200);
+              const matched = frequencyToPersianNote(freq, a4Hz, koronMode, gusheh.scale);
+              const isAct =
+                activeNote !== null && isSamePitchClass(matched.note, activeNote);
+              const inScale = gusheh.scale.some((s) => isSamePitchClass(s, matched.note));
+              return (
+                <button
+                  key={f.fret}
+                  type="button"
+                  onClick={() => {
+                    playPersianNote(matched.note, {
+                      instrument: 'tanbur',
+                      durationSec: 1.15,
+                      a4Hz,
+                      koronMode,
+                    });
+                    setLastClickedLabel(
+                      `تنبور (${f.labelFa}) ← ${formatNoteFa(matched.note, true)}`
+                    );
+                  }}
+                  className={`rounded-lg border px-2 py-1.5 text-center transition cursor-pointer ${
+                    isAct
+                      ? 'border-teal-300 bg-teal-500 text-slate-950 font-black'
+                      : inScale
+                        ? 'border-violet-400/50 bg-violet-500/25 text-white hover:bg-violet-500/40'
+                        : 'border-white/10 bg-black/30 text-slate-400 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="text-[10px] opacity-80">{f.labelFa}</div>
+                  <div className="text-xs font-extrabold">{formatNoteFa(matched.note)}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {viewInstrument === 'oud' && (
+        <div className="rounded-xl bg-gradient-to-b from-rose-950/90 to-slate-950 p-3.5 text-white space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-rose-200/90">
+            <span>دسته بدون پرده عود / بربت ایرانی (۵ سیم جفت: دو – سل – ر – لا – فا)</span>
+            <span>نقاط ربع‌پرده کُرُن و درجات گام هایلایت شده‌اند</span>
+          </div>
+          <div className="space-y-1.5" dir="ltr">
+            {OUD_5_COURSES.map((course) => {
+              const openCents = noteToCentsFromC0(course.openNote, koronMode);
+              const stops = [0, 100, 150, 200, 300, 350, 400, 500];
+              return (
+                <div
+                  key={course.courseNumber}
+                  className="flex items-center gap-2 rounded-lg bg-black/35 px-2.5 py-1.5"
+                >
+                  <span
+                    dir="rtl"
+                    className="w-28 shrink-0 text-right text-[10px] font-bold"
+                    style={{ color: course.colorHex }}
+                  >
+                    {course.labelFa}
+                  </span>
+                  <div className="relative flex flex-1 items-center justify-between">
+                    <div className="pointer-events-none absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-white/25" />
+                    {stops.map((offsetC) => {
+                      const totalC = openCents + offsetC;
+                      const freq = a4Hz * Math.pow(2, (totalC - (4 * 1200 + 900)) / 1200);
+                      const matched = frequencyToPersianNote(freq, a4Hz, koronMode, gusheh.scale);
+                      const inScale = gusheh.scale.some((s) => isSamePitchClass(s, matched.note));
+                      const isAct =
+                        activeNote !== null &&
+                        Math.abs(totalC - noteToCentsFromC0(activeNote, koronMode)) < 25;
+                      return (
+                        <button
+                          key={offsetC}
+                          type="button"
+                          onClick={() => {
+                            playPersianNote(matched.note, {
+                              instrument: 'oud',
+                              durationSec: 1.15,
+                              a4Hz,
+                              koronMode,
+                            });
+                            setLastClickedLabel(
+                              `عود (${course.labelFa}) ← ${formatNoteFa(matched.note, true)}`
+                            );
+                          }}
+                          className={`relative z-10 flex h-7 w-8 items-center justify-center rounded-full border text-[9px] font-bold transition hover:scale-110 cursor-pointer ${
+                            isAct
+                              ? 'border-white bg-teal-400 text-slate-950'
+                              : inScale
+                                ? 'border-rose-300 bg-rose-600/80 text-white'
+                                : 'border-white/15 bg-slate-900 text-slate-400 opacity-60 hover:opacity-100'
+                          }`}
+                        >
+                          {formatNoteFa(matched.note).slice(0, 3)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

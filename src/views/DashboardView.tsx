@@ -62,6 +62,7 @@ interface DashboardViewProps {
   onOpenTeacherModal: () => void;
   onOpenExportModal: () => void;
   onOpenExplorer: () => void;
+  onOpenOnboarding?: () => void;
   onRequestUpgrade: () => void;
 }
 
@@ -80,6 +81,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenTeacherModal,
   onOpenExportModal,
   onOpenExplorer,
+  onOpenOnboarding,
   onRequestUpgrade,
 }) => {
   const [placementOpen, setPlacementOpen] = useState(false);
@@ -283,6 +285,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <GraduationCap className="h-4 w-4" />
               کلاس استاد / تکلیف
             </button>
+            {onOpenOnboarding && (
+              <button
+                type="button"
+                onClick={onOpenOnboarding}
+                className="inline-flex items-center gap-1.5 rounded-2xl border border-emerald-400/35 bg-emerald-400/15 px-3.5 py-3 text-xs font-bold text-emerald-200 hover:bg-emerald-400/25"
+              >
+                <Sparkles className="h-4 w-4" />
+                تنظیم سریع (۲۰ ثانیه)
+              </button>
+            )}
             <button
               type="button"
               onClick={onOpenExportModal}

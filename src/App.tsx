@@ -65,6 +65,9 @@ const PaywallModal = lazy(() =>
 const TeacherAssignmentModal = lazy(() =>
   import('./components/TeacherAssignmentModal').then((m) => ({ default: m.TeacherAssignmentModal }))
 );
+const OnboardingModal = lazy(() =>
+  import('./components/OnboardingModal').then((m) => ({ default: m.OnboardingModal }))
+);
 const CommunityView = lazy(() =>
   import('./views/CommunityView').then((m) => ({ default: m.CommunityView }))
 );
@@ -122,6 +125,7 @@ export function App() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [teacherModalOpen, setTeacherModalOpen] = useState(false);
   const [glossaryOpen, setGlossaryOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [isOffline, setIsOffline] = useState<boolean>(
     typeof navigator !== 'undefined' ? navigator.onLine === false : false
   );
@@ -548,6 +552,7 @@ export function App() {
               onOpenTeacherModal={() => setTeacherModalOpen(true)}
               onOpenExportModal={() => setExportModalOpen(true)}
               onOpenExplorer={() => setActiveTab('explorer')}
+              onOpenOnboarding={() => setOnboardingOpen(true)}
               onRequestUpgrade={() => setPaywallOpen(true)}
             />
           )}
@@ -678,6 +683,21 @@ export function App() {
             instrument={instrument}
             koronMode={koronMode}
             onLoadAssignment={handleLoadTeacherAssignment}
+          />
+        )}
+
+        {onboardingOpen && (
+          <OnboardingModal
+            open={onboardingOpen}
+            initialInstrument={instrument}
+            onClose={() => setOnboardingOpen(false)}
+            onComplete={(profile) => {
+              setInstrument(profile.instrument);
+              setUserState((prev) => ({
+                ...prev,
+                level: profile.level,
+              }));
+            }}
           />
         )}
       </Suspense>

@@ -22,13 +22,16 @@ import type {
   UserLearningState,
 } from '../types/music';
 import {
-  buildPrintableSheetHtml,
   generateGushehMusicXml,
   generateMicrotonalMidiBytes,
   renderProgressCardToCanvas,
   synthesizeGushehToWav,
   triggerFileDownload,
 } from '../utils/exporters';
+import {
+  generatePrintableSheetHtml,
+  openPrintableSheetWindow,
+} from '../utils/printableSheet';
 import { INSTRUMENT_LABELS_FA } from '../utils/persian';
 
 interface ExportShareModalProps {
@@ -96,17 +99,14 @@ export const ExportShareModal: React.FC<ExportShareModalProps> = ({
   };
 
   const handlePrintSheet = () => {
-    const html = buildPrintableSheetHtml(gusheh, koronMode);
-    const win = window.open('', '_blank', 'width=900,height=720');
-    if (win) {
-      win.document.open();
-      win.document.write(html);
-      win.document.close();
-      setStatusFa('صفحه چاپی نت ایرانی باز شد؛ از دکمه چاپ برای ذخیره PDF استفاده کنید.');
-    } else {
-      triggerFileDownload(new Blob([html], { type: 'text/html;charset=utf-8' }), `navanegar-${slug}-sheet.html`);
-      setStatusFa('برگه نت قابل چاپ (HTML/PDF) دانلود شد.');
-    }
+    const html = generatePrintableSheetHtml({
+      gusheh,
+      instrument,
+      koronMode,
+      a4Hz,
+    });
+    openPrintableSheetWindow(html, `navanegar-${slug}-sheet-a4.html`);
+    setStatusFa('جزوه چاپی A4 (با خط حامل ربع‌پرده، انگشت‌گذاری، کوک و شعر تقطیع‌شده) آماده چاپ / PDF شد.');
   };
 
   const handleDownloadCardPng = () => {

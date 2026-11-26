@@ -9,6 +9,7 @@ import {
   Minimize2,
   PauseCircle,
   Play,
+  Printer,
   RefreshCw,
   Repeat,
   RotateCcw,
@@ -31,10 +32,20 @@ import {
   type FourthOrderFilterMode,
 } from '../audio/dsp';
 import {
+  getActiveHallReverbPreset,
+  HALL_REVERB_PRESETS,
+  setActiveHallReverbPreset,
+  type HallReverbPresetId,
+} from '../audio/hallReverb';
+import {
   playGushehPhrase,
   playPersianNote,
   type PhrasePlaybackHandle,
 } from '../audio/karplusStrong';
+import {
+  generatePrintableSheetHtml,
+  openPrintableSheetWindow,
+} from '../utils/printableSheet';
 import { CentGauge } from '../components/CentGauge';
 import { InstrumentBridgeCanvas } from '../components/InstrumentBridgeCanvas';
 import { PersianStaffNotation } from '../components/PersianStaffNotation';
@@ -52,8 +63,14 @@ const BreathLongTonePanel = lazy(() =>
 const CallResponsePanel = lazy(() =>
   import('../components/CallResponsePanel').then((m) => ({ default: m.CallResponsePanel }))
 );
+const DastgahQuizPanel = lazy(() =>
+  import('../components/DastgahQuizPanel').then((m) => ({ default: m.DastgahQuizPanel }))
+);
 const DronePanel = lazy(() =>
   import('../components/DronePanel').then((m) => ({ default: m.DronePanel }))
+);
+const EnsembleMixdownPanel = lazy(() =>
+  import('../components/EnsembleMixdownPanel').then((m) => ({ default: m.EnsembleMixdownPanel }))
 );
 const FFTVisualizerPanel = lazy(() =>
   import('../components/FFTVisualizerPanel').then((m) => ({ default: m.FFTVisualizerPanel }))
@@ -63,6 +80,11 @@ const InstrumentTunerPanel = lazy(() =>
 );
 const MetronomePanel = lazy(() =>
   import('../components/MetronomePanel').then((m) => ({ default: m.MetronomePanel }))
+);
+const MicrotonalScoreEditorPanel = lazy(() =>
+  import('../components/MicrotonalScoreEditorPanel').then((m) => ({
+    default: m.MicrotonalScoreEditorPanel,
+  }))
 );
 const MusicStandOverlay = lazy(() =>
   import('../components/MusicStandOverlay').then((m) => ({ default: m.MusicStandOverlay }))
@@ -77,10 +99,15 @@ const RecorderPanel = lazy(() =>
   import('../components/RecorderPanel').then((m) => ({ default: m.RecorderPanel }))
 );
 const TemperamentEditorPanel = lazy(() =>
-  import('../components/TemperamentEditorPanel').then((m) => ({ default: m.TemperamentEditorPanel }))
+  import('../components/TemperamentEditorPanel').then((m) => ({
+    default: m.TemperamentEditorPanel,
+  }))
 );
 const TombakDafPanel = lazy(() =>
   import('../components/TombakDafPanel').then((m) => ({ default: m.TombakDafPanel }))
+);
+const TraditionComparePanel = lazy(() =>
+  import('../components/TraditionComparePanel').then((m) => ({ default: m.TraditionComparePanel }))
 );
 const WebMidiPanel = lazy(() =>
   import('../components/WebMidiPanel').then((m) => ({ default: m.WebMidiPanel }))
@@ -191,7 +218,11 @@ type StudioToolTab =
   | 'metronome'
   | 'midi'
   | 'fft'
-  | 'recorder';
+  | 'recorder'
+  | 'score_editor'
+  | 'tradition_ab'
+  | 'mixdown'
+  | 'dastgah_quiz';
 
 export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
   ownerUid,
@@ -225,9 +256,17 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
   // Feature 8: Smart Tuning & Vocal Transposition (-12..+12 semitones)
   const [transposeSemitones, setTransposeSemitones] = useState<number>(0);
   const [transpositionPanelOpen, setTranspositionPanelOpen] = useState(false);
-  // Phase 3: Real Ornament Playback Engine & Landscape Music-Stand Mode (Wake Lock)
+  // Phase 3 & 4: Real Ornament Playback Engine, Music Stand (Wake Lock) & Persian Hall Reverb
   const [enableOrnaments, setEnableOrnaments] = useState<boolean>(true);
   const [musicStandOpen, setMusicStandOpen] = useState<boolean>(false);
+  const [reverbPreset, setReverbPreset] = useState<HallReverbPresetId>(() =>
+    getActiveHallReverbPreset()
+  );
+
+  const handleChangeReverbPreset = useCallback((next: HallReverbPresetId) => {
+    setReverbPreset(next);
+    setActiveHallReverbPreset(next);
+  }, []);
 
   const effectiveGusheh = useMemo(
     () => transposeGusheh(gusheh, transposeSemitones, koronMode),
@@ -1079,6 +1118,38 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
 
             <button
               type="button"
+              onClick={() => {
+                const html = generatePrintableSheetHtml({
+                  gusheh: effectiveGusheh,
+                  instrument,
+                  koronMode,
+                  a4Hz,
+                });
+                openPrintableSheetWindow(html, `navanegar-${effectiveGusheh.id}-a4.html`);
+              }}
+              title="چاپ جزوه A4 / ذخیره PDF نت ایرانی با انگشت‌گذاری و شعر"
+              className="inline-flex items-center gap-1 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-500/25 dark:text-emerald-300"
+            >
+              <Printer className="h-4 w-4" />
+              <span className="hidden lg:inline">چاپ A4</span>
+            </button>
+
+            <select
+              value={reverbPreset}
+              onChange={(e) => handleChangeReverbPreset(e.target.value as HallReverbPresetId)}
+              aria-label="فضای آکوستیک و ریورب تالار ایرانی"
+              title="آکوستیک و ریورب تالار ایرانی"
+              className="rounded-xl border border-indigo-400/40 bg-indigo-500/10 px-2 py-2 text-[11px] font-bold text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-200"
+            >
+              {HALL_REVERB_PRESETS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  آکوستیک: {p.shortFa}
+                </option>
+              ))}
+            </select>
+
+            <button
+              type="button"
               onClick={() => setFullscreen((v) => !v)}
               title="حالت تمرین تمام‌صفحه (کلید F)"
               className="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-slate-100 px-2.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
@@ -1554,6 +1625,10 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
         {(
           [
             { id: 'bridge', labelFa: 'پل بصری و انگشت‌گذاری' },
+            { id: 'score_editor', labelFa: 'نت‌نگار ربع‌پرده (آهنگ‌ساز)' },
+            { id: 'tradition_ab', labelFa: 'مقایسه روایت‌ها (A/B)' },
+            { id: 'mixdown', labelFa: 'میکسر همنوازی (WAV)' },
+            { id: 'dastgah_quiz', labelFa: 'آزمون تشخیص دستگاه' },
             { id: 'call_response', labelFa: 'سؤال و جواب (بداهه)' },
             { id: 'prosody_avaz', labelFa: 'آواز و تقطیع عروضی' },
             { id: 'blind_tuning', labelFa: 'کوک با گوش' },
@@ -1744,6 +1819,43 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
             onToggleRecordingPublic={onToggleRecordingPublic}
             onDeleteRecording={onDeleteRecording}
             onRequestUpgrade={onRequestUpgrade}
+          />
+        )}
+
+        {activeToolTab === 'score_editor' && (
+          <MicrotonalScoreEditorPanel
+            gusheh={effectiveGusheh}
+            instrument={instrument}
+            a4Hz={a4Hz}
+            koronMode={koronMode}
+          />
+        )}
+
+        {activeToolTab === 'tradition_ab' && (
+          <TraditionComparePanel
+            gusheh={effectiveGusheh}
+            instrument={instrument}
+            a4Hz={a4Hz}
+          />
+        )}
+
+        {activeToolTab === 'mixdown' && (
+          <EnsembleMixdownPanel
+            gusheh={effectiveGusheh}
+            instrument={instrument}
+            a4Hz={a4Hz}
+            koronMode={koronMode}
+            reverbPreset={reverbPreset}
+            onChangeReverbPreset={handleChangeReverbPreset}
+            recordings={recordings}
+          />
+        )}
+
+        {activeToolTab === 'dastgah_quiz' && (
+          <DastgahQuizPanel
+            instrument={instrument}
+            a4Hz={a4Hz}
+            koronMode={koronMode}
           />
         )}
 

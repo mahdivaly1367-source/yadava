@@ -7,6 +7,7 @@ import type {
   PersianNoteSpec,
 } from '../types/music';
 import { getAudioContext } from './audioContext';
+import { getReverbInputNode } from './hallReverb';
 import { expandNoteWithOrnaments } from './ornamentEngine';
 
 export interface KarplusSynthOptions {
@@ -711,7 +712,7 @@ export function playPersianNote(
     masterGain.gain.value = 0.78;
 
     src.connect(masterGain);
-    masterGain.connect(ctx.destination);
+    masterGain.connect(getReverbInputNode(ctx));
     src.start(now + ev.offsetSec);
     activeSources.push(src);
   }
@@ -759,7 +760,7 @@ export function playFrequencyTone(
   const gain = ctx.createGain();
   gain.gain.value = 0.78;
   src.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(getReverbInputNode(ctx));
   src.start(ctx.currentTime + 0.01);
 
   return {

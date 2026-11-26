@@ -52,6 +52,11 @@ describe('Navanegar App Integration UI Smoke Test', () => {
     expect(screen.getByText(/پشتیبان‌گیری و بازیابی کامل آفلاین/)).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText('بستن'));
 
+    // Open & close 20-second Onboarding Wizard
+    fireEvent.click(screen.getByText(/تنظیم سریع \(۲۰ ثانیه\)/));
+    expect(await screen.findByText(/تنظیم سریع استودیوی شخصی نوانگار/)).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('بستن خوش‌آمدگویی'));
+
     // 2. Lazy PracticeStudioView + 7 Instruments + Ornaments + Music Stand + All Phase 1–3 Labs
     fireEvent.click(screen.getAllByText('کارگاه تمرین')[0]);
     expect(await screen.findByText(/عقربه سنت زنده/)).toBeInTheDocument();
@@ -79,6 +84,28 @@ describe('Navanegar App Integration UI Smoke Test', () => {
 
     fireEvent.click(screen.getByText('کوک با گوش'));
     expect(await screen.findByText(/آزمایشگاه «کوک کردن با گوش»/)).toBeInTheDocument();
+
+    // Phase-4 Studio Labs: Score Editor, A/B Traditions, Ensemble Mixdown, Dastgah Quiz
+    fireEvent.click(screen.getByText('نت‌نگار ربع‌پرده (آهنگ‌ساز)'));
+    expect(await screen.findByText(/ویرایشگر و نت‌نگار تعاملی ربع‌پرده/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('مقایسه روایت‌ها (A/B)'));
+    expect(await screen.findByText(/مقایسه زنده دو روایت ردیف/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('میکسر همنوازی (WAV)'));
+    expect(await screen.findByText(/میکسر همنوازی چندتراکی/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('آزمون تشخیص دستگاه'));
+    expect(await screen.findByText(/آزمون حرفه‌ای تشخیص دستگاه و گوشه با گوش/)).toBeInTheDocument();
+
+    // Switch back to Bridge Canvas to verify Tanbur 14-fret, Oud 5-course & Santur Retuning Guide
+    fireEvent.click(screen.getByText('پل بصری و انگشت‌گذاری'));
+    fireEvent.click(screen.getByText('تنبور (۱۴ پرده)'));
+    expect(screen.getAllByText(/دسته ۱۴ پرده‌ای تنبور اصیل/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByText('عود (۵ سیم)'));
+    expect(screen.getAllByText(/دسته بدون پرده عود/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByText('سنتور (۲۷ خرک)'));
+    expect(screen.getAllByText(/راهنمای جابه‌جایی خرک‌های سنتور/).length).toBeGreaterThan(0);
 
     // Phase-1 & Phase-2 Studio Tabs
     fireEvent.click(screen.getByText('واخوان (Drone)'));
