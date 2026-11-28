@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { Check, Clock, GraduationCap, Music2, Sparkles, X } from 'lucide-react';
-import type { InstrumentId, LearnerLevel } from '../types/music';
+import { Check, Clock, GraduationCap, Layers, Music2, Sparkles, X } from 'lucide-react';
+import { WORKSPACE_MODE_CONFIGS, WORKSPACE_MODE_ORDER } from '../core/workspaceMode';
+import type { InstrumentId, LearnerLevel, WorkspaceMode } from '../types/music';
 import { ALL_INSTRUMENT_IDS, INSTRUMENT_LABELS_FA, toPersianDigits } from '../utils/persian';
 
 export interface OnboardingProfile {
   instrument: InstrumentId;
   level: LearnerLevel;
   dailyMinutesGoal: 10 | 15 | 30;
+  workspaceMode: WorkspaceMode;
   completedAtIso: string;
 }
 
@@ -34,6 +36,7 @@ export function saveOnboardingProfile(profile: OnboardingProfile): void {
 interface OnboardingModalProps {
   open: boolean;
   initialInstrument: InstrumentId;
+  initialWorkspaceMode?: WorkspaceMode;
   onClose: () => void;
   onComplete: (profile: OnboardingProfile) => void;
 }
@@ -41,6 +44,7 @@ interface OnboardingModalProps {
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   open,
   initialInstrument,
+  initialWorkspaceMode = 'full',
   onClose,
   onComplete,
 }) => {
@@ -48,6 +52,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   const [instrument, setInstrument] = useState<InstrumentId>(initialInstrument);
   const [level, setLevel] = useState<LearnerLevel>('beginner');
   const [dailyMinutesGoal, setDailyMinutesGoal] = useState<10 | 15 | 30>(15);
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(initialWorkspaceMode);
 
   if (!open) return null;
 
@@ -56,6 +61,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       instrument,
       level,
       dailyMinutesGoal,
+      workspaceMode,
       completedAtIso: new Date().toISOString(),
     };
     saveOnboardingProfile(profile);
@@ -176,29 +182,67 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
           </div>
         )}
 
-        {/* Step 3: Daily Practice Goal */}
+        {/* Step 3: Workspace Mode & Daily Practice Goal */}
         {step === 3 && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-800 dark:text-slate-100">
-              <Clock className="h-4 w-4 text-teal-600" />
-              هدف تمرین روزانه شما چند دقیقه است؟
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-800 dark:text-slate-100">
+                <Layers className="h-4 w-4 text-teal-600" />
+                حالت نمایش امکانات برنامه را انتخاب کنید (هر زمان قابل تغییر است):
+              </div>
+              <div className="space-y-1.5">
+                {WORKSPACE_MODE_ORDER.map((modeId) => {
+                  const cfg = WORKSPACE_MODE_CONFIGS[modeId];
+                  return (
+                    <button
+                      key={modeId}
+                      type="button"
+                      onClick={() => setWorkspaceMode(modeId)}
+                      className={`w-full rounded-2xl border p-2.5 text-right transition cursor-pointer ${
+                        workspaceMode === modeId
+                          ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/45'
+                          : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-black text-slate-900 dark:text-white">
+                          {cfg.labelFa}
+                        </span>
+                        <span className="rounded-md bg-teal-500/15 px-1.5 py-0.5 text-[10px] font-bold text-teal-700 dark:text-teal-300">
+                          {cfg.badgeFa}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                        {cfg.taglineFa}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {([10, 15, 30] as const).map((mins) => (
-                <button
-                  key={mins}
-                  type="button"
-                  onClick={() => setDailyMinutesGoal(mins)}
-                  className={`rounded-2xl border p-4 text-center transition cursor-pointer ${
-                    dailyMinutesGoal === mins
-                      ? 'border-teal-500 bg-teal-600 text-white shadow-md'
-                      : 'border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'
-                  }`}
-                >
-                  <div className="text-xl font-black">{toPersianDigits(mins)}</div>
-                  <div className="text-[11px] font-bold opacity-85">دقیقه در روز</div>
-                </button>
-              ))}
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-800 dark:text-slate-100">
+                <Clock className="h-4 w-4 text-teal-600" />
+                هدف تمرین روزانه شما چند دقیقه است؟
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {([10, 15, 30] as const).map((mins) => (
+                  <button
+                    key={mins}
+                    type="button"
+                    onClick={() => setDailyMinutesGoal(mins)}
+                    className={`rounded-2xl border p-3 text-center transition cursor-pointer ${
+                      dailyMinutesGoal === mins
+                        ? 'border-teal-500 bg-teal-600 text-white shadow-md'
+                        : 'border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'
+                    }`}
+                  >
+                    <div className="text-lg font-black">{toPersianDigits(mins)}</div>
+                    <div className="text-[11px] font-bold opacity-85">دقیقه در روز</div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}

@@ -8,6 +8,11 @@ import {
   reviewSrsCard,
   scoreToSrsQuality,
 } from './core/srs';
+import {
+  loadWorkspaceMode,
+  resolveAllowedTab,
+  saveWorkspaceMode,
+} from './core/workspaceMode';
 import { ALL_GUSHEHS, GUSHEH_BY_ID, isGushehUnlocked } from './data/radifData';
 import {
   clearWebPreviewEntitlement,
@@ -46,6 +51,7 @@ import type {
   SavedRecordingMeta,
   TeacherAssignment,
   UserLearningState,
+  WorkspaceMode,
 } from './types/music';
 import { toIsoDateKey } from './utils/jalali';
 import { DashboardView } from './views/DashboardView';
@@ -96,9 +102,16 @@ export function App() {
   });
 
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(() => loadWorkspaceMode());
   const [studioSubPanel, setStudioSubPanel] = useState<'dsp' | 'tuner' | 'recorder' | undefined>(
     undefined
   );
+
+  const handleChangeWorkspaceMode = useCallback((nextMode: WorkspaceMode) => {
+    setWorkspaceMode(nextMode);
+    saveWorkspaceMode(nextMode);
+    setActiveTab((prev) => resolveAllowedTab(prev, nextMode));
+  }, []);
 
   // Atomic ownerUid ('guest' | Firebase UID | local test UID)
   const [ownerUid, setOwnerUid] = useState<string>(GUEST_OWNER_UID);
@@ -516,7 +529,9 @@ export function App() {
     <div className="persian-grid-bg min-h-screen bg-slate-50 pb-20 text-slate-900 transition-colors lg:pb-8 dark:bg-slate-950 dark:text-slate-100">
       <Header
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        onSelectTab={(tab) => setActiveTab(resolveAllowedTab(tab, workspaceMode))}
+        workspaceMode={workspaceMode}
+        onChangeWorkspaceMode={handleChangeWorkspaceMode}
         theme={theme}
         onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
         ownerUid={ownerUid}
@@ -540,6 +555,8 @@ export function App() {
             <DashboardView
               userState={userState}
               isPro={entitlement.isPro}
+              workspaceMode={workspaceMode}
+              onChangeWorkspaceMode={handleChangeWorkspaceMode}
               instrument={instrument}
               a4Hz={a4Hz}
               koronMode={koronMode}
@@ -561,6 +578,8 @@ export function App() {
             <PracticeStudioView
               ownerUid={ownerUid}
               ownerName={userState.displayName}
+              workspaceMode={workspaceMode}
+              onChangeWorkspaceMode={handleChangeWorkspaceMode}
               gusheh={activeGusheh}
               onSelectGusheh={(id) => handleStartGushehPractice(id)}
               instrument={instrument}
@@ -690,9 +709,11 @@ export function App() {
           <OnboardingModal
             open={onboardingOpen}
             initialInstrument={instrument}
+            initialWorkspaceMode={workspaceMode}
             onClose={() => setOnboardingOpen(false)}
             onComplete={(profile) => {
               setInstrument(profile.instrument);
+              handleChangeWorkspaceMode(profile.workspaceMode);
               setUserState((prev) => ({
                 ...prev,
                 level: profile.level,

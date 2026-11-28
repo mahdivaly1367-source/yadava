@@ -6,6 +6,7 @@ import {
   Compass,
   Flame,
   GraduationCap,
+  Layers,
   Mic,
   Play,
   Share2,
@@ -32,6 +33,7 @@ import {
   getDueSrsCards,
   recommendNextSession,
 } from '../core/srs';
+import { getWorkspaceModeConfig } from '../core/workspaceMode';
 import { formatNoteFa, noteToFrequency } from '../data/musicTheory';
 import { GUSHEH_BY_ID, SYSTEM_BY_ID } from '../data/radifData';
 import type {
@@ -39,6 +41,7 @@ import type {
   KoronMode,
   PlacementResult,
   UserLearningState,
+  WorkspaceMode,
 } from '../types/music';
 import {
   formatDurationFa,
@@ -50,6 +53,8 @@ import {
 interface DashboardViewProps {
   userState: UserLearningState;
   isPro: boolean;
+  workspaceMode: WorkspaceMode;
+  onChangeWorkspaceMode: (mode: WorkspaceMode) => void;
   instrument: InstrumentId;
   a4Hz: number;
   koronMode: KoronMode;
@@ -69,6 +74,8 @@ interface DashboardViewProps {
 export const DashboardView: React.FC<DashboardViewProps> = ({
   userState,
   isPro,
+  workspaceMode,
+  onChangeWorkspaceMode,
   instrument,
   a4Hz,
   koronMode,
@@ -84,6 +91,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenOnboarding,
   onRequestUpgrade,
 }) => {
+  const modeConfig = getWorkspaceModeConfig(workspaceMode);
+  const dashCfg = modeConfig.dashboard;
   const [placementOpen, setPlacementOpen] = useState(false);
   const [placementStep, setPlacementStep] = useState<'ear' | 'pitch' | 'done'>('ear');
   const [earAnswers, setEarAnswers] = useState<Record<string, string>>({});
@@ -256,19 +265,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <Play className="h-4 w-4 fill-slate-950" />
               شروع تمرین زنده این گوشه
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPlacementOpen((v) => !v);
-                setPlacementStep('ear');
-              }}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-4 py-3 text-xs font-bold text-white backdrop-blur transition hover:bg-white/20"
-            >
-              <Target className="h-4 w-4 text-amber-300" />
-              {userState.placementCompleted
-                ? 'تکرار آزمون تعیین سطح'
-                : 'آزمون تعیین سطح شنیداری و کوک'}
-            </button>
+            {dashCfg.showPlacementButton && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPlacementOpen((v) => !v);
+                  setPlacementStep('ear');
+                }}
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-4 py-3 text-xs font-bold text-white backdrop-blur transition hover:bg-white/20"
+              >
+                <Target className="h-4 w-4 text-amber-300" />
+                {userState.placementCompleted
+                  ? 'تکرار آزمون تعیین سطح'
+                  : 'آزمون تعیین سطح شنیداری و کوک'}
+              </button>
+            )}
             <button
               type="button"
               onClick={onOpenExplorer}
@@ -277,15 +288,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <Compass className="h-4 w-4" />
               مرور ۱۷۳ گوشه ردیف
             </button>
-            <button
-              type="button"
-              onClick={onOpenTeacherModal}
-              className="inline-flex items-center gap-1.5 rounded-2xl border border-amber-400/35 bg-amber-400/15 px-4 py-3 text-xs font-bold text-amber-200 hover:bg-amber-400/25"
-            >
-              <GraduationCap className="h-4 w-4" />
-              کلاس استاد / تکلیف
-            </button>
-            {onOpenOnboarding && (
+            {dashCfg.showTeacherButton && (
+              <button
+                type="button"
+                onClick={onOpenTeacherModal}
+                className="inline-flex items-center gap-1.5 rounded-2xl border border-amber-400/35 bg-amber-400/15 px-4 py-3 text-xs font-bold text-amber-200 hover:bg-amber-400/25"
+              >
+                <GraduationCap className="h-4 w-4" />
+                کلاس استاد / تکلیف
+              </button>
+            )}
+            {onOpenOnboarding && dashCfg.showOnboardingButton && (
               <button
                 type="button"
                 onClick={onOpenOnboarding}
@@ -295,14 +308,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 تنظیم سریع (۲۰ ثانیه)
               </button>
             )}
-            <button
-              type="button"
-              onClick={onOpenExportModal}
-              className="inline-flex items-center gap-1.5 rounded-2xl border border-white/15 bg-white/5 px-3.5 py-3 text-xs font-bold text-slate-200 hover:bg-white/15"
-            >
-              <Share2 className="h-4 w-4" />
-              کارت پیشرفت و خروجی
-            </button>
+            {dashCfg.showExportButton && (
+              <button
+                type="button"
+                onClick={onOpenExportModal}
+                className="inline-flex items-center gap-1.5 rounded-2xl border border-white/15 bg-white/5 px-3.5 py-3 text-xs font-bold text-slate-200 hover:bg-white/15"
+              >
+                <Share2 className="h-4 w-4" />
+                کارت پیشرفت و خروجی
+              </button>
+            )}
           </div>
         </div>
 
@@ -372,7 +387,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </section>
 
       {/* Interactive Placement Test (Ear Training + Live Mic Pitch Intonation) */}
-      {placementOpen && (
+      {placementOpen && dashCfg.showPlacementButton && (
         <section className="rounded-3xl border border-amber-500/35 bg-white p-5 shadow-lg dark:bg-slate-900">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3 dark:border-slate-800">
             <div>
@@ -625,129 +640,177 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </section>
 
       {/* Feature 3: Microtonal Ear Training Academy */}
-      <EarTrainingLab
-        isPro={isPro}
-        instrument={instrument}
-        a4Hz={a4Hz}
-        koronMode={koronMode}
-        stats={
-          userState.earTrainingStats ?? {
-            totalAnswered: 0,
-            totalCorrect: 0,
-            bestStreak: 0,
-            completedSessions: 0,
+      {dashCfg.showEarTraining && (
+        <EarTrainingLab
+          isPro={isPro}
+          instrument={instrument}
+          a4Hz={a4Hz}
+          koronMode={koronMode}
+          stats={
+            userState.earTrainingStats ?? {
+              totalAnswered: 0,
+              totalCorrect: 0,
+              bestStreak: 0,
+              completedSessions: 0,
+            }
           }
-        }
-        onRecordAnswer={onRecordEarAnswer}
-      />
+          onRecordAnswer={onRecordEarAnswer}
+        />
+      )}
 
       {/* Feature 12: Jalali Practice Heatmap, Streak Freeze & Weekly Challenges */}
-      <PracticeHeatmapAndChallenges
-        userState={userState}
-        onActivateFreezeToday={onActivateStreakFreeze}
-        onStartChallengeGusheh={(gid) => onStartGushehPractice(gid, 'dsp')}
-      />
+      {dashCfg.showHeatmapAndChallenges && (
+        <PracticeHeatmapAndChallenges
+          userState={userState}
+          onActivateFreezeToday={onActivateStreakFreeze}
+          onStartChallengeGusheh={(gid) => onStartGushehPractice(gid, 'dsp')}
+        />
+      )}
 
       {/* Phase-2 Feature 10: Guided 30-Day Learning Paths */}
-      <LearningPathsPanel
-        userState={userState}
-        isPro={isPro}
-        onStartStepInStudio={(_sysId, gid) => onStartGushehPractice(gid, 'dsp')}
-        onToggleStepCompleted={onTogglePathStep}
-        onRequestUpgrade={onRequestUpgrade}
-      />
+      {dashCfg.showLearningPaths && (
+        <LearningPathsPanel
+          userState={userState}
+          isPro={isPro}
+          onStartStepInStudio={(_sysId, gid) => onStartGushehPractice(gid, 'dsp')}
+          onToggleStepCompleted={onTogglePathStep}
+          onRequestUpgrade={onRequestUpgrade}
+        />
+      )}
 
       {/* Phase-2 Feature 11: Classical Rhythmic Pieces (Tasnif, Pishdaramad, Chaharmezrab, Reng) */}
-      <ClassicalPiecesPanel
-        instrument={instrument}
-        a4Hz={a4Hz}
-        koronMode={koronMode}
-        isPro={isPro}
-        onRequestUpgrade={onRequestUpgrade}
-      />
+      {dashCfg.showClassicalPieces && (
+        <ClassicalPiecesPanel
+          instrument={instrument}
+          a4Hz={a4Hz}
+          koronMode={koronMode}
+          isPro={isPro}
+          onRequestUpgrade={onRequestUpgrade}
+        />
+      )}
 
       {/* Badges & Session History */}
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Achievements */}
-        <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/85">
-          <div className="mb-3 flex items-center gap-2">
-            <Award className="h-5 w-5 text-amber-500" />
-            <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">
-              نشان‌های افتخار ردیف ({toPersianDigits(userState.badges.length)} از{' '}
-              {toPersianDigits(ALL_BADGES.length)})
-            </h2>
-          </div>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-            {ALL_BADGES.map((b) => {
-              const unlocked = userState.badges.includes(b.id);
-              return (
-                <div
-                  key={b.id}
-                  className={`rounded-2xl border p-3 text-center transition ${
-                    unlocked
-                      ? 'border-amber-400/50 bg-amber-500/10'
-                      : 'border-slate-200/70 bg-slate-100/60 opacity-55 dark:border-slate-800 dark:bg-slate-800/40'
-                  }`}
-                >
-                  <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300">
-                    <Award className="h-5 w-5" />
-                  </div>
-                  <div className="mt-2 text-xs font-bold text-slate-900 dark:text-white">
-                    {b.titleFa}
-                  </div>
-                  <p className="mt-0.5 text-[10px] leading-4 text-slate-500 dark:text-slate-400">
-                    {b.descriptionFa}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Practice History */}
-        <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/85">
-          <h2 className="mb-3 text-sm font-extrabold text-slate-900 dark:text-white">
-            تاریخچه جلسات اخیر ({toPersianDigits(userState.sessions.length)})
-          </h2>
-          {userState.sessions.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
-              هنوز جلسه‌ای ثبت نشده است. پس از تمرین در کارگاه، دکمه «ثبت پایان جلسه» را بزنید تا
-              پیشرفت و کارت مرور SM-2 شما ذخیره شود.
+      {dashCfg.showBadgesAndHistory && (
+        <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {/* Achievements */}
+          <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/85">
+            <div className="mb-3 flex items-center gap-2">
+              <Award className="h-5 w-5 text-amber-500" />
+              <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                نشان‌های افتخار ردیف ({toPersianDigits(userState.badges.length)} از{' '}
+                {toPersianDigits(ALL_BADGES.length)})
+              </h2>
             </div>
-          ) : (
-            <div className="max-h-72 space-y-2 overflow-y-auto pl-1">
-              {userState.sessions.slice(0, 12).map((s) => {
-                const g = GUSHEH_BY_ID[s.gushehId];
-                const sys = SYSTEM_BY_ID[s.dastgahId];
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              {ALL_BADGES.map((b) => {
+                const unlocked = userState.badges.includes(b.id);
                 return (
                   <div
-                    key={s.id}
-                    className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/75 px-3 py-2.5 text-xs dark:border-slate-800 dark:bg-slate-800/50"
+                    key={b.id}
+                    className={`rounded-2xl border p-3 text-center transition ${
+                      unlocked
+                        ? 'border-amber-400/50 bg-amber-500/10'
+                        : 'border-slate-200/70 bg-slate-100/60 opacity-55 dark:border-slate-800 dark:bg-slate-800/40'
+                    }`}
                   >
-                    <div>
-                      <div className="font-bold text-slate-900 dark:text-white">
-                        {g?.nameFa ?? s.gushehId}
-                      </div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                        {sys?.nameFa} • {INSTRUMENT_LABELS_FA[s.instrument]} •{' '}
-                        {formatDurationFa(s.durationSeconds)}
-                      </div>
+                    <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300">
+                      <Award className="h-5 w-5" />
                     </div>
-                    <div className="flex items-center gap-2 text-left">
-                      <span className="rounded-lg bg-teal-500/15 px-2 py-0.5 font-extrabold text-teal-700 dark:text-teal-300">
-                        کوک {toPersianDigits(s.accuracyPercent)}٪
-                      </span>
-                      <span className="rounded-lg bg-emerald-500/15 px-2 py-0.5 font-bold text-emerald-700 dark:text-emerald-300">
-                        فرود {toPersianDigits(s.foroudScore)}٪
-                      </span>
+                    <div className="mt-2 text-xs font-bold text-slate-900 dark:text-white">
+                      {b.titleFa}
                     </div>
+                    <p className="mt-0.5 text-[10px] leading-4 text-slate-500 dark:text-slate-400">
+                      {b.descriptionFa}
+                    </p>
                   </div>
                 );
               })}
             </div>
-          )}
-        </div>
-      </section>
+          </div>
+
+          {/* Practice History */}
+          <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/85">
+            <h2 className="mb-3 text-sm font-extrabold text-slate-900 dark:text-white">
+              تاریخچه جلسات اخیر ({toPersianDigits(userState.sessions.length)})
+            </h2>
+            {userState.sessions.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                هنوز جلسه‌ای ثبت نشده است. پس از تمرین در کارگاه، دکمه «ثبت پایان جلسه» را بزنید تا
+                پیشرفت و کارت مرور SM-2 شما ذخیره شود.
+              </div>
+            ) : (
+              <div className="max-h-72 space-y-2 overflow-y-auto pl-1">
+                {userState.sessions.slice(0, 12).map((s) => {
+                  const g = GUSHEH_BY_ID[s.gushehId];
+                  const sys = SYSTEM_BY_ID[s.dastgahId];
+                  return (
+                    <div
+                      key={s.id}
+                      className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/75 px-3 py-2.5 text-xs dark:border-slate-800 dark:bg-slate-800/50"
+                    >
+                      <div>
+                        <div className="font-bold text-slate-900 dark:text-white">
+                          {g?.nameFa ?? s.gushehId}
+                        </div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {sys?.nameFa} • {INSTRUMENT_LABELS_FA[s.instrument]} •{' '}
+                          {formatDurationFa(s.durationSeconds)}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-left">
+                        <span className="rounded-lg bg-teal-500/15 px-2 py-0.5 font-extrabold text-teal-700 dark:text-teal-300">
+                          کوک {toPersianDigits(s.accuracyPercent)}٪
+                        </span>
+                        <span className="rounded-lg bg-emerald-500/15 px-2 py-0.5 font-bold text-emerald-700 dark:text-emerald-300">
+                          فرود {toPersianDigits(s.foroudScore)}٪
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Non-intrusive Workspace Mode Expansion Strip (shown only in Lite / Standard modes) */}
+      {workspaceMode !== 'full' && (
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-dashed border-teal-500/35 bg-teal-500/5 px-5 py-4">
+          <div className="flex items-start gap-2.5">
+            <Layers className="mt-0.5 h-5 w-5 shrink-0 text-teal-600 dark:text-teal-400" />
+            <div>
+              <div className="text-xs font-extrabold text-slate-900 dark:text-white">
+                هم‌اکنون در «{modeConfig.labelFa}» هستید ({modeConfig.badgeFa})
+              </div>
+              <p className="mt-0.5 text-[11px] leading-5 text-slate-600 dark:text-slate-400">
+                {workspaceMode === 'lite'
+                  ? 'برای دسترسی به تربیت گوش، مسیرهای ۳۰ روزه، نقشه مدولاسیون، آواز عروضی و ابزارهای تخصصی‌تر می‌توانید هر لحظه نمای برنامه را تغییر دهید.'
+                  : 'برای دسترسی به انجمن زنده، کلاس استاد، آزمایشگاه سمپل واقعی، نت‌نگار ربع‌پرده، میکسر WAV و FFT به حالت کامل (اصلی) بروید.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {workspaceMode === 'lite' && (
+              <button
+                type="button"
+                onClick={() => onChangeWorkspaceMode('standard')}
+                className="rounded-xl border border-sky-500/40 bg-sky-500/15 px-3.5 py-2 text-xs font-extrabold text-sky-700 transition hover:bg-sky-500/25 dark:text-sky-300 cursor-pointer"
+              >
+                رفتن به حالت متوسط
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => onChangeWorkspaceMode('full')}
+              className="rounded-xl bg-teal-600 px-3.5 py-2 text-xs font-extrabold text-white shadow-sm transition hover:bg-teal-500 cursor-pointer"
+            >
+              نمایش حالت کامل (اصلی)
+            </button>
+          </div>
+        </section>
+      )}
     </div>
   );
 };
