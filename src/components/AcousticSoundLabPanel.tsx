@@ -11,13 +11,11 @@ import {
   REAL_SAMPLE_CREDITS,
   setAcousticSculptSettings,
 } from '../audio/sampleEngine';
-import { noteToFrequency } from '../data/musicTheory';
 import type {
   AcousticSculptSettings,
   CustomInstrumentSampleMeta,
   InstrumentId,
   KoronMode,
-  OrnamentType,
   SoundEngineMode,
 } from '../types/music';
 import { ALL_INSTRUMENT_IDS, INSTRUMENT_LABELS_FA, toPersianDigits } from '../utils/persian';
@@ -120,25 +118,23 @@ export const AcousticSoundLabPanel: React.FC<AcousticSoundLabPanelProps> = ({
     if (settings.engineMode !== 'physical_v2' && !acousticSampleBank.isInstrumentReady(instId)) {
       await acousticSampleBank.preloadInstrument(ctx, instId);
     }
-    // Expressive Shur motif covering quick articulation + Malesh glide + sustained Shahed/Ist:
-    // G4 -> A-Koron4 -> Bb4 -> C5 -> A-Koron4 -> G4 (sustained)
+    // Clean Shur motif with pure, unstretched Persian microtonal intonation:
+    // G4 -> A-Koron4 -> Bb4 -> C5 -> A-Koron4 -> G4
     const motif: Array<{
       letter: 'G' | 'A' | 'B' | 'C';
       accidental: 'natural' | 'koron' | 'flat';
       octave: number;
       dur: number;
       vel: number;
-      orn?: OrnamentType;
     }> = [
       { letter: 'G', accidental: 'natural', octave: 4, dur: 0.34, vel: 0.9 },
       { letter: 'A', accidental: 'koron', octave: 4, dur: 0.32, vel: 0.85 },
-      { letter: 'B', accidental: 'flat', octave: 4, dur: 0.44, vel: 0.92, orn: 'eshareh' },
+      { letter: 'B', accidental: 'flat', octave: 4, dur: 0.42, vel: 0.92 },
       { letter: 'C', accidental: 'natural', octave: 5, dur: 0.38, vel: 0.88 },
-      { letter: 'A', accidental: 'koron', octave: 4, dur: 0.46, vel: 0.86, orn: 'tekieh' },
-      { letter: 'G', accidental: 'natural', octave: 4, dur: 1.1, vel: 0.9 },
+      { letter: 'A', accidental: 'koron', octave: 4, dur: 0.42, vel: 0.86 },
+      { letter: 'G', accidental: 'natural', octave: 4, dur: 0.95, vel: 0.9 },
     ];
     let offset = 0.02;
-    let prevHz: number | undefined;
     for (const step of motif) {
       const noteSpec = { letter: step.letter, accidental: step.accidental, octave: step.octave };
       playPersianNote(noteSpec, {
@@ -146,13 +142,11 @@ export const AcousticSoundLabPanel: React.FC<AcousticSoundLabPanelProps> = ({
         durationSec: step.dur,
         a4Hz,
         koronMode,
-        ornament: step.orn,
+        enableOrnaments: false,
         startTimeOffsetSec: offset,
         velocity: step.vel,
-        prevFreqHz: prevHz,
       });
-      prevHz = noteToFrequency(noteSpec, a4Hz, koronMode);
-      offset += step.dur * 0.88;
+      offset += step.dur * 0.92;
     }
   };
 

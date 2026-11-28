@@ -100,8 +100,7 @@ export const MicrotonalScoreEditorPanel: React.FC<MicrotonalScoreEditorPanelProp
         durationSec: 0.45,
         a4Hz,
         koronMode,
-        ornament: updated.ornament,
-        enableOrnaments: true,
+        enableOrnaments: false,
         scale: previewGusheh.scale,
       });
       return { ...prev, notes };
@@ -153,7 +152,7 @@ export const MicrotonalScoreEditorPanel: React.FC<MicrotonalScoreEditorPanelProp
       startIndex: 0,
       endIndex: previewGusheh.melody.length - 1,
       loop: false,
-      enableOrnaments: true,
+      enableOrnaments: false,
       scale: previewGusheh.scale,
       onNoteStart: (idx) => setPlayingIdx(idx),
       onComplete: () => {

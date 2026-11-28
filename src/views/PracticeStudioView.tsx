@@ -270,7 +270,7 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
   const [transposeSemitones, setTransposeSemitones] = useState<number>(0);
   const [transpositionPanelOpen, setTranspositionPanelOpen] = useState(false);
   // Phase 3 & 4: Real Ornament Playback Engine, Music Stand (Wake Lock) & Persian Hall Reverb
-  const [enableOrnaments, setEnableOrnaments] = useState<boolean>(true);
+  const [enableOrnaments, setEnableOrnaments] = useState<boolean>(false);
   const [musicStandOpen, setMusicStandOpen] = useState<boolean>(false);
   const [reverbPreset, setReverbPreset] = useState<HallReverbPresetId>(() =>
     getActiveHallReverbPreset()
@@ -1638,7 +1638,8 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
                 durationSec: 0.9,
                 a4Hz,
                 koronMode,
-                ornament: note.ornament,
+                ornament: enableOrnaments ? note.ornament : undefined,
+                enableOrnaments,
               });
             }}
             onSetLoopStart={setLoopStart}

@@ -218,8 +218,6 @@ export function synthesizeKarplusStrongSamples(opts: KarplusSynthOptions): Float
       const envRelease = Math.min(1, Math.max(0, (durationSec - t) / releaseSec));
       const env = envAttack * envRelease;
 
-      // Subtle natural breath onset scoop (-9¢ -> 0¢ in first 38ms, exact 0¢ steady-state)
-      const onsetScoopCents = t < 0.038 ? -9 * Math.pow(1 - t / 0.038, 2) : 0;
       const slideCents =
         hasSlide && t < slideDur
           ? 1200 * Math.log2((slideFromHz as number) / safeFreq) * Math.pow(1 - t / slideDur, 1.8)
@@ -230,7 +228,7 @@ export function synthesizeKarplusStrongSamples(opts: KarplusSynthOptions): Float
       const vibCents =
         vibratoDepthCents * Math.sin(2 * Math.PI * vibratoRate * t) * vibRamp;
 
-      const instFreq = safeFreq * Math.pow(2, (onsetScoopCents + slideCents + vibCents) / 1200);
+      const instFreq = safeFreq * Math.pow(2, (slideCents + vibCents) / 1200);
       phase += (2 * Math.PI * instFreq) / sampleRate;
 
       // Authentic hollow bamboo reed overtone balance (rich warm 2nd & 3rd harmonics)
@@ -300,8 +298,6 @@ export function synthesizeKarplusStrongSamples(opts: KarplusSynthOptions): Float
 
       const slideCents = hasSlide && t < slideDur
         ? 1200 * Math.log2((slideFromHz as number) / safeFreq) * Math.pow(1 - t / slideDur, 1.65)
-        : t < 0.032
-        ? -5.5 * Math.pow(1 - t / 0.032, 2)
         : 0;
 
       const vibRamp = isTahrir
@@ -687,8 +683,10 @@ export function playPersianNote(
   const freq = noteToFrequency(note, a4Hz, koronMode);
   const now = ctx.currentTime + (options.startTimeOffsetSec ?? 0.005);
   const velocity = options.velocity ?? 0.85;
-  const effectiveOrnament: OrnamentType | undefined =
-    options.enableOrnaments === false ? undefined : options.ornament;
+  const ornamentsActive = options.enableOrnaments === true;
+  const effectiveOrnament: OrnamentType | undefined = ornamentsActive
+    ? options.ornament
+    : undefined;
 
   // 1. Try Real Studio Multi-Sample / Hybrid Acoustic Engine first
   const sampleStopper = acousticSampleBank.tryPlayRealSampleNote({
@@ -699,7 +697,7 @@ export function playPersianNote(
     volume: Math.max(0.1, Math.min(1.0, velocity * 0.88)),
     startTime: now,
     ornament: effectiveOrnament,
-    prevFreqHz: options.prevFreqHz,
+    prevFreqHz: ornamentsActive ? options.prevFreqHz : undefined,
   });
 
   if (sampleStopper) {
@@ -717,13 +715,13 @@ export function playPersianNote(
     baseFreqHz: freq,
     durationSec,
     instrument: options.instrument,
-    ornament: options.ornament,
+    ornament: effectiveOrnament,
     velocity,
-    enableOrnaments: options.enableOrnaments ?? true,
+    enableOrnaments: ornamentsActive,
     scale: options.scale,
     a4Hz,
     koronMode,
-    prevFreqHz: options.prevFreqHz,
+    prevFreqHz: ornamentsActive ? options.prevFreqHz : undefined,
   });
 
   for (const ev of events) {
@@ -911,15 +909,16 @@ export function playGushehPhrase(
       const tId = window.setTimeout(() => {
         if (cancelled) return;
         options.onNoteStart?.(idx, note);
+        const ornamentsActive = options.enableOrnaments === true;
         const handle = playPersianNote(note, {
           instrument: options.instrument,
-          durationSec: durSec * 1.22,
+          durationSec: durSec * 1.02,
           a4Hz: options.a4Hz,
           koronMode: options.koronMode,
-          ornament: note.ornament,
-          enableOrnaments: options.enableOrnaments ?? true,
+          ornament: ornamentsActive ? note.ornament : undefined,
+          enableOrnaments: ornamentsActive,
           scale: options.scale,
-          prevFreqHz,
+          prevFreqHz: ornamentsActive ? prevFreqHz : undefined,
         });
         activeStoppers.push(handle.stop);
       }, triggerAt);

@@ -117,7 +117,7 @@ export const MASTER_STUDIO_PRESETS: MasterStudioPreset[] = [
   {
     id: 'studio_balanced',
     nameFa: 'استودیویی متعادل',
-    subtitleFa: 'توازن ایده‌آل بدنه کانولوشن، وضوح نت و کوک دقیق',
+    subtitleFa: 'توازن ایده‌آل بدنه کانولوشن، وضوح نت و کوک دقیق بدون کشش اضافی',
     patch: {
       engineMode: 'hybrid_studio',
       bodyWarmth: 0.64,
@@ -125,9 +125,9 @@ export const MASTER_STUDIO_PRESETS: MasterStudioPreset[] = [
       sympatheticShimmer: 0.48,
       bodyConvolverMix: 0.68,
       neyBreathiness: 0.62,
-      vibratoExpression: 0.52,
+      vibratoExpression: 0.0,
       santurMallet: 'felt',
-      legatoMalesh: true,
+      legatoMalesh: false,
       humanizeMicroCents: true,
     },
   },
@@ -142,9 +142,9 @@ export const MASTER_STUDIO_PRESETS: MasterStudioPreset[] = [
       sympatheticShimmer: 0.62,
       bodyConvolverMix: 0.82,
       neyBreathiness: 0.76,
-      vibratoExpression: 0.64,
+      vibratoExpression: 0.0,
       santurMallet: 'felt',
-      legatoMalesh: true,
+      legatoMalesh: false,
       humanizeMicroCents: true,
     },
   },
@@ -159,16 +159,16 @@ export const MASTER_STUDIO_PRESETS: MasterStudioPreset[] = [
       sympatheticShimmer: 0.68,
       bodyConvolverMix: 0.62,
       neyBreathiness: 0.48,
-      vibratoExpression: 0.46,
+      vibratoExpression: 0.0,
       santurMallet: 'wood',
-      legatoMalesh: true,
+      legatoMalesh: false,
       humanizeMicroCents: true,
     },
   },
   {
     id: 'authentic_avaz',
-    nameFa: 'آواز اصیل و مالش زنده',
-    subtitleFa: 'نَفَس غنی نی، مالش نرم کمانچه و عود، و ویبراتوی طبیعی انتهای نت',
+    nameFa: 'آواز اصیل و طنین گرم',
+    subtitleFa: 'نَفَس غنی نی، طنین اصیل کمانچه و عود با کوک پایدار و شفاف',
     patch: {
       engineMode: 'hybrid_studio',
       bodyWarmth: 0.72,
@@ -176,15 +176,15 @@ export const MASTER_STUDIO_PRESETS: MasterStudioPreset[] = [
       sympatheticShimmer: 0.52,
       bodyConvolverMix: 0.74,
       neyBreathiness: 0.86,
-      vibratoExpression: 0.78,
+      vibratoExpression: 0.0,
       santurMallet: 'felt',
-      legatoMalesh: true,
+      legatoMalesh: false,
       humanizeMicroCents: true,
     },
   },
 ];
 
-const SETTINGS_STORAGE_KEY = 'navanegar_acoustic_sculpt_v25';
+const SETTINGS_STORAGE_KEY = 'navanegar_acoustic_sculpt_v26';
 
 export const DEFAULT_ACOUSTIC_SCULPT: AcousticSculptSettings = {
   engineMode: 'hybrid_studio',
@@ -193,9 +193,9 @@ export const DEFAULT_ACOUSTIC_SCULPT: AcousticSculptSettings = {
   sympatheticShimmer: 0.48,
   bodyConvolverMix: 0.68,
   neyBreathiness: 0.62,
-  vibratoExpression: 0.52,
+  vibratoExpression: 0.0,
   santurMallet: 'felt',
-  legatoMalesh: true,
+  legatoMalesh: false,
   humanizeMicroCents: true,
 };
 
@@ -885,7 +885,6 @@ class AcousticSampleBankManager {
       volume,
       startTime,
       ornament,
-      prevFreqHz,
     } = opts;
 
     const isHybrid = mode === 'hybrid_studio';
@@ -1069,23 +1068,7 @@ class AcousticSampleBankManager {
       outGain.connect(getReverbInputNode(ctx));
     }
 
-    // Determine authentic Persian Malesh (`مالش`) portamento start ratio when transitioning from prevFreqHz
-    let maleshStartRatio: number | null = null;
-    if (
-      isHybrid &&
-      sculptSettings.legatoMalesh &&
-      profile.supportsMalesh &&
-      !ornament &&
-      typeof prevFreqHz === 'number' &&
-      prevFreqHz > 40
-    ) {
-      const intervalCents = 1200 * Math.log2(frequency / prevFreqHz);
-      if (Math.abs(intervalCents) >= 35 && Math.abs(intervalCents) <= 360) {
-        // Approach from ~55% of the previous note interval so glide sounds lyrical & never muddy
-        maleshStartRatio = Math.pow(2, (-intervalCents * 0.55) / 1200);
-      }
-    }
-
+    // Keep pitch rock-solid and clean on every attack (no ornamental pitch-glide / stretch)
     const spawnSampleVoice = (
       voiceBuf: AudioBuffer,
       voiceStart: number,
@@ -1109,69 +1092,6 @@ class AcousticSampleBankManager {
         src.loopEnd = loopEndSec;
       }
 
-      // 1. Tar lambskin membrane transient pitch-drop (+4.2c -> 0c in 18ms on strong plucks!)
-      if (isHybrid && instrument === 'tar' && !ornament && velocity > 0.55) {
-        const dropCents = 2.5 + (velocity - 0.55) * 5.0;
-        src.playbackRate.setValueAtTime(voiceRate * Math.pow(2, dropCents / 1200), voiceStart);
-        src.playbackRate.exponentialRampToValueAtTime(voiceRate, voiceStart + 0.018);
-      }
-
-      // 2. Authentic Persian Malesh (`مالش`) glide from previous melody note
-      if (maleshStartRatio !== null) {
-        src.playbackRate.setValueAtTime(voiceRate * maleshStartRatio, voiceStart);
-        src.playbackRate.exponentialRampToValueAtTime(
-          voiceRate,
-          voiceStart + Math.min(profile.maleshDurSec, totalDur * 0.32)
-        );
-      }
-
-      // 3. Real-time Persian Ornaments (`اشاره`, `تکیه`, `تحریر`)
-      if (ornament === 'eshareh') {
-        const graceRate = voiceRate * Math.pow(2, 110 / 1200);
-        src.playbackRate.setValueAtTime(graceRate, voiceStart);
-        src.playbackRate.exponentialRampToValueAtTime(voiceRate, voiceStart + 0.055);
-      } else if (ornament === 'tekieh') {
-        const flickRate = voiceRate * Math.pow(2, 165 / 1200);
-        src.playbackRate.setValueAtTime(voiceRate, voiceStart);
-        src.playbackRate.exponentialRampToValueAtTime(flickRate, voiceStart + 0.045);
-        src.playbackRate.exponentialRampToValueAtTime(voiceRate, voiceStart + 0.11);
-      } else if (ornament === 'tahrir') {
-        // Authentic ~5.8 Hz asymmetric Persian Tahrir glottal/bow break
-        const steps = Math.max(4, Math.floor((voiceEnd - voiceStart) * 20));
-        for (let s = 1; s <= steps; s++) {
-          const dt = s / 20;
-          if (voiceStart + dt >= voiceEnd) break;
-          const phase = 2 * Math.PI * 5.8 * dt;
-          const cents = Math.sin(phase) * 46 + (Math.sin(phase) > 0.7 ? 26 : 0);
-          src.playbackRate.setTargetAtTime(
-            voiceRate * Math.pow(2, cents / 1200),
-            voiceStart + dt,
-            0.013
-          );
-        }
-      } else if (
-        isHybrid &&
-        allowLoop &&
-        profile.vibratoRateHz > 0 &&
-        sculptSettings.vibratoExpression > 0.08 &&
-        totalDur >= 0.48
-      ) {
-        // 4. Delayed organic breath / bow vibrato on sustained Ney & Kamancheh notes
-        //    (starts after 230ms so attack & tuning stay dead-center 0.0c!)
-        const delaySec = 0.23;
-        const maxDepth = profile.vibratoMaxCents * sculptSettings.vibratoExpression;
-        const stepSec = 0.032;
-        for (let dt = delaySec; dt < totalDur - 0.06; dt += stepSec) {
-          const bloom = Math.min(1, (dt - delaySec) / 0.28);
-          const cents = Math.sin(2 * Math.PI * profile.vibratoRateHz * (dt - delaySec)) * maxDepth * bloom;
-          src.playbackRate.setTargetAtTime(
-            voiceRate * Math.pow(2, cents / 1200),
-            voiceStart + dt,
-            0.016
-          );
-        }
-      }
-
       const vg = ctx.createGain();
       vg.gain.setValueAtTime(voiceGainVal, voiceStart);
       src.connect(vg);
@@ -1183,7 +1103,7 @@ class AcousticSampleBankManager {
 
     const stopAt = startTime + totalDur + release;
 
-    // Handle Dorab & Riz ornaments or normal multi-course / multi-layer performance
+    // Handle discrete rhythmic ornaments (when explicitly enabled) with zero pitch-glide/stretch
     if (ornament === 'dorab') {
       spawnSampleVoice(buffer, startTime, rate * Math.pow(2, -50 / 1200), 0.72, startTime + 0.12, false);
       spawnSampleVoice(buffer, startTime + 0.065, rate * Math.pow(2, 100 / 1200), 0.78, startTime + 0.19, false);
