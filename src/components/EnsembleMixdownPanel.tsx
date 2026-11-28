@@ -98,7 +98,7 @@ export const EnsembleMixdownPanel: React.FC<EnsembleMixdownPanelProps> = ({
         a4Hz,
         koronMode,
         bpm,
-        enableOrnaments: true,
+        enableOrnaments: false,
         reverbPreset,
         melodyVolume: melodyVol,
         droneVolume: droneVol,

@@ -115,7 +115,7 @@ export const CallResponsePanel: React.FC<CallResponsePanelProps> = ({
       startIndex: 0,
       endIndex: callPhrase.notes.length - 1,
       loop: false,
-      enableOrnaments: true,
+      enableOrnaments: false,
       scale: gusheh.scale,
       onNoteStart: (idx) => setActiveCallNoteIdx(idx),
       onComplete: () => {

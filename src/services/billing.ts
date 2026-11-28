@@ -9,30 +9,50 @@ import type {
 export const FREE_MAX_RECORDINGS = 2;
 export const QUARTERLY_DURATION_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 
-export const PRODUCT_CATALOG: Record<
-  BillingProductId,
-  {
-    id: BillingProductId;
-    titleFa: string;
-    subtitleFa: string;
-    priceToman: number;
-    durationDays: number | null;
-    type: 'inapp' | 'subs';
+export interface CatalogProduct {
+  id: BillingProductId;
+  titleFa: string;
+  subtitleFa: string;
+  badgeFa: string;
+  anchorNoteFa: string;
+  priceToman: number;
+  regularPriceToman: number;
+  durationDays: number | null;
+  type: 'inapp' | 'subs';
+}
+
+export function getDiscountPercent(
+  priceToman: number,
+  regularPriceToman?: number | null
+): number | null {
+  if (!regularPriceToman || regularPriceToman <= priceToman || priceToman <= 0) {
+    return null;
   }
-> = {
+  return Math.round(((regularPriceToman - priceToman) / regularPriceToman) * 100);
+}
+
+export const PRODUCT_CATALOG: Record<BillingProductId, CatalogProduct> = {
   navanegar_pro_lifetime: {
     id: 'navanegar_pro_lifetime',
     titleFa: 'نسخه کامل نوانگار (دائمی)',
-    subtitleFa: 'یک‌بار پرداخت، دسترسی همیشگی به تمامی ۱۷۳ گوشه، FFT زیرسنت و بایگانی نامحدود',
-    priceToman: 249_000,
+    subtitleFa:
+      'یک‌بار پرداخت برای همیشه؛ دسترسی کامل به ۱۷۳ گوشه، ۵۴ سمپل واقعی ۷ ساز، تحلیلگر FFT زیرسنت، مدولاسیون و بایگانی نامحدود',
+    badgeFa: 'پیشنهاد ویژه · تخفیف انتشار',
+    anchorNoteFa: 'کمتر از هزینه یک جلسه کلاس حضوری موسیقی — مالکیت همیشگی بدون تمدید',
+    priceToman: 299_000,
+    regularPriceToman: 449_000,
     durationDays: null,
     type: 'inapp',
   },
   navanegar_pro_quarterly: {
     id: 'navanegar_pro_quarterly',
-    titleFa: 'اشتراک ۹۰ روزه نوانگار حرفه‌ای',
-    subtitleFa: 'دسترسی کامل سه‌ماهه به کل ردیف ۱۲ دستگاهی، FFT زنده و نقشه کامل مدولاسیون',
-    priceToman: 99_000,
+    titleFa: 'اشتراک ۹۰ روزه (یک ترم کامل)',
+    subtitleFa:
+      'دسترسی کامل سه‌ماهه به کل ردیف ۱۲ دستگاهی، استودیوی صدای واقعی، حالت صبر (Wait Mode) و نقشه مدولاسیون',
+    badgeFa: 'معادل ~۵۰٬۰۰۰ تومان در ماه',
+    anchorNoteFa: 'ایده‌آل برای یک ترم ۳ ماهه تمرین منظم ردیف پیش از ارتقا به نسخه دائمی',
+    priceToman: 149_000,
+    regularPriceToman: 189_000,
     durationDays: 90,
     type: 'subs',
   },

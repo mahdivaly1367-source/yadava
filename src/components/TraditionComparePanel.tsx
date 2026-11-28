@@ -56,7 +56,7 @@ export const TraditionComparePanel: React.FC<TraditionComparePanelProps> = ({
       startIndex: 0,
       endIndex: variant.melody.length - 1,
       loop: false,
-      enableOrnaments: true,
+      enableOrnaments: false,
       scale: gusheh.scale,
       onNoteStart: (idx) => setActiveNoteIdx(idx),
       onComplete: () => {

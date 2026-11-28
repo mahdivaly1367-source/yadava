@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   Footprints,
   GraduationCap,
+  Layers,
   Maximize2,
   Mic,
   MicOff,
@@ -142,6 +143,12 @@ import {
   evaluateWaitModeStep,
   type WaitModeState,
 } from '../core/waitMode';
+import {
+  getHiddenStudioToolCount,
+  getWorkspaceModeConfig,
+  resolveAllowedStudioTool,
+  type StudioToolTab,
+} from '../core/workspaceMode';
 import { formatNoteFa, frequencyToPersianNote } from '../data/musicTheory';
 import {
   ALL_GUSHEHS,
@@ -163,6 +170,7 @@ import type {
   SavedRecordingMeta,
   SoundEngineMode,
   TeacherAssignment,
+  WorkspaceMode,
 } from '../types/music';
 import {
   ALL_INSTRUMENT_IDS,
@@ -176,6 +184,8 @@ import {
 interface PracticeStudioViewProps {
   ownerUid: string;
   ownerName: string;
+  workspaceMode: WorkspaceMode;
+  onChangeWorkspaceMode: (mode: WorkspaceMode) => void;
   gusheh: Gusheh;
   onSelectGusheh: (gushehId: string) => void;
   instrument: InstrumentId;
@@ -215,31 +225,11 @@ const INITIAL_FRAME: PitchAnalysisFrame = {
   foroudScore: 0,
 };
 
-type StudioToolTab =
-  | 'bridge'
-  | 'sound_lab'
-  | 'call_response'
-  | 'prosody_avaz'
-  | 'blind_tuning'
-  | 'drone'
-  | 'percussion'
-  | 'poetry'
-  | 'slowdowner'
-  | 'temperament'
-  | 'breath'
-  | 'tuner'
-  | 'metronome'
-  | 'midi'
-  | 'fft'
-  | 'recorder'
-  | 'score_editor'
-  | 'tradition_ab'
-  | 'mixdown'
-  | 'dastgah_quiz';
-
 export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
   ownerUid,
   ownerName,
+  workspaceMode,
+  onChangeWorkspaceMode,
   gusheh,
   onSelectGusheh,
   instrument,
@@ -266,11 +256,14 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
   onDeleteRecording,
   onRequestUpgrade,
 }) => {
+  const modeConfig = getWorkspaceModeConfig(workspaceMode);
+  const studioCfg = modeConfig.studio;
+  const hiddenStudioToolCount = getHiddenStudioToolCount(workspaceMode);
   // Feature 8: Smart Tuning & Vocal Transposition (-12..+12 semitones)
   const [transposeSemitones, setTransposeSemitones] = useState<number>(0);
   const [transpositionPanelOpen, setTranspositionPanelOpen] = useState(false);
   // Phase 3 & 4: Real Ornament Playback Engine, Music Stand (Wake Lock) & Persian Hall Reverb
-  const [enableOrnaments, setEnableOrnaments] = useState<boolean>(true);
+  const [enableOrnaments, setEnableOrnaments] = useState<boolean>(false);
   const [musicStandOpen, setMusicStandOpen] = useState<boolean>(false);
   const [reverbPreset, setReverbPreset] = useState<HallReverbPresetId>(() =>
     getActiveHallReverbPreset()
@@ -375,6 +368,13 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
       ? 'recorder'
       : 'bridge'
   );
+
+  // Keep active studio tool & collapsible panels aligned whenever workspaceMode changes
+  useEffect(() => {
+    setActiveToolTab((prev) => resolveAllowedStudioTool(prev, workspaceMode));
+    if (!studioCfg.showTranspositionToggle) setTranspositionPanelOpen(false);
+    if (!studioCfg.showFootPedalButton) setPedalPanelOpen(false);
+  }, [workspaceMode, studioCfg.showTranspositionToggle, studioCfg.showFootPedalButton]);
 
   // DSP Refs
   const streamRef = useRef<MediaStream | null>(null);
@@ -1112,79 +1112,91 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
               ))}
             </select>
 
-            <button
-              type="button"
-              onClick={onOpenTeacherModal}
-              title="کلاس استاد و تکلیف هفتگی"
-              className="inline-flex items-center gap-1 rounded-xl border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-xs font-bold text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
-            >
-              <GraduationCap className="h-4 w-4" />
-              <span className="hidden md:inline">تکلیف</span>
-            </button>
+            {studioCfg.showTeacherButton && (
+              <button
+                type="button"
+                onClick={onOpenTeacherModal}
+                title="کلاس استاد و تکلیف هفتگی"
+                className="inline-flex items-center gap-1 rounded-xl border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-xs font-bold text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
+              >
+                <GraduationCap className="h-4 w-4" />
+                <span className="hidden md:inline">تکلیف</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={onOpenExportModal}
-              title="خروجی MusicXML / MIDI / WAV / PDF / کارت پیشرفت"
-              className="inline-flex items-center gap-1 rounded-xl border border-teal-500/40 bg-teal-500/10 px-2.5 py-2 text-xs font-bold text-teal-700 hover:bg-teal-500/20 dark:text-teal-300"
-            >
-              <Share2 className="h-4 w-4" />
-              <span className="hidden md:inline">خروجی</span>
-            </button>
+            {studioCfg.showExportButton && (
+              <button
+                type="button"
+                onClick={onOpenExportModal}
+                title="خروجی MusicXML / MIDI / WAV / PDF / کارت پیشرفت"
+                className="inline-flex items-center gap-1 rounded-xl border border-teal-500/40 bg-teal-500/10 px-2.5 py-2 text-xs font-bold text-teal-700 hover:bg-teal-500/20 dark:text-teal-300"
+              >
+                <Share2 className="h-4 w-4" />
+                <span className="hidden md:inline">خروجی</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => setMusicStandOpen(true)}
-              title="حالت پایه نت افقی با جلوگیری از خاموش شدن صفحه (Wake Lock)"
-              className="inline-flex items-center gap-1 rounded-xl border border-amber-500/40 bg-amber-500/15 px-2.5 py-2 text-xs font-bold text-amber-700 hover:bg-amber-500/25 dark:text-amber-300"
-            >
-              <Sun className="h-4 w-4" />
-              <span className="hidden lg:inline">پایه نت</span>
-            </button>
+            {studioCfg.showMusicStandButton && (
+              <button
+                type="button"
+                onClick={() => setMusicStandOpen(true)}
+                title="حالت پایه نت افقی با جلوگیری از خاموش شدن صفحه (Wake Lock)"
+                className="inline-flex items-center gap-1 rounded-xl border border-amber-500/40 bg-amber-500/15 px-2.5 py-2 text-xs font-bold text-amber-700 hover:bg-amber-500/25 dark:text-amber-300"
+              >
+                <Sun className="h-4 w-4" />
+                <span className="hidden lg:inline">پایه نت</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => {
-                const html = generatePrintableSheetHtml({
-                  gusheh: effectiveGusheh,
-                  instrument,
-                  koronMode,
-                  a4Hz,
-                });
-                openPrintableSheetWindow(html, `navanegar-${effectiveGusheh.id}-a4.html`);
-              }}
-              title="چاپ جزوه A4 / ذخیره PDF نت ایرانی با انگشت‌گذاری و شعر"
-              className="inline-flex items-center gap-1 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-500/25 dark:text-emerald-300"
-            >
-              <Printer className="h-4 w-4" />
-              <span className="hidden lg:inline">چاپ A4</span>
-            </button>
+            {studioCfg.showPrintSheetButton && (
+              <button
+                type="button"
+                onClick={() => {
+                  const html = generatePrintableSheetHtml({
+                    gusheh: effectiveGusheh,
+                    instrument,
+                    koronMode,
+                    a4Hz,
+                  });
+                  openPrintableSheetWindow(html, `navanegar-${effectiveGusheh.id}-a4.html`);
+                }}
+                title="چاپ جزوه A4 / ذخیره PDF نت ایرانی با انگشت‌گذاری و شعر"
+                className="inline-flex items-center gap-1 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-500/25 dark:text-emerald-300"
+              >
+                <Printer className="h-4 w-4" />
+                <span className="hidden lg:inline">چاپ A4</span>
+              </button>
+            )}
 
-            <select
-              value={soundEngineMode}
-              onChange={(e) => handleChangeSoundEngineMode(e.target.value as SoundEngineMode)}
-              aria-label="موتور صوتی و سمپل واقعی سازها"
-              title="انتخاب موتور صوتی: هیبرید سمپل واقعی / سمپل خالص / سنتز فیزیکی v2"
-              className="rounded-xl border border-teal-400/45 bg-teal-500/10 px-2 py-2 text-[11px] font-bold text-teal-800 dark:bg-teal-950/60 dark:text-teal-200"
-            >
-              <option value="hybrid_studio">صدا: هیبرید سمپل واقعی</option>
-              <option value="acoustic_samples">صدا: سمپل استودیویی خالص</option>
-              <option value="physical_v2">صدا: سنتز فیزیکی v2</option>
-            </select>
+            {studioCfg.showSoundEngineSelector && (
+              <select
+                value={soundEngineMode}
+                onChange={(e) => handleChangeSoundEngineMode(e.target.value as SoundEngineMode)}
+                aria-label="موتور صوتی و سمپل واقعی سازها"
+                title="انتخاب موتور صوتی: هیبرید سمپل واقعی / سمپل خالص / سنتز فیزیکی v2"
+                className="rounded-xl border border-teal-400/45 bg-teal-500/10 px-2 py-2 text-[11px] font-bold text-teal-800 dark:bg-teal-950/60 dark:text-teal-200"
+              >
+                <option value="hybrid_studio">صدا: هیبرید سمپل واقعی</option>
+                <option value="acoustic_samples">صدا: سمپل استودیویی خالص</option>
+                <option value="physical_v2">صدا: سنتز فیزیکی v2</option>
+              </select>
+            )}
 
-            <select
-              value={reverbPreset}
-              onChange={(e) => handleChangeReverbPreset(e.target.value as HallReverbPresetId)}
-              aria-label="فضای آکوستیک و ریورب تالار ایرانی"
-              title="آکوستیک و ریورب تالار ایرانی"
-              className="rounded-xl border border-indigo-400/40 bg-indigo-500/10 px-2 py-2 text-[11px] font-bold text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-200"
-            >
-              {HALL_REVERB_PRESETS.map((p) => (
-                <option key={p.id} value={p.id}>
-                  آکوستیک: {p.shortFa}
-                </option>
-              ))}
-            </select>
+            {studioCfg.showReverbSelector && (
+              <select
+                value={reverbPreset}
+                onChange={(e) => handleChangeReverbPreset(e.target.value as HallReverbPresetId)}
+                aria-label="فضای آکوستیک و ریورب تالار ایرانی"
+                title="آکوستیک و ریورب تالار ایرانی"
+                className="rounded-xl border border-indigo-400/40 bg-indigo-500/10 px-2 py-2 text-[11px] font-bold text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-200"
+              >
+                {HALL_REVERB_PRESETS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    آکوستیک: {p.shortFa}
+                  </option>
+                ))}
+              </select>
+            )}
 
             <button
               type="button"
@@ -1266,33 +1278,37 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
               حلقه
             </button>
 
-            <button
-              type="button"
-              onClick={() => setEnableOrnaments((v) => !v)}
-              title="اجرای واقعی ریز، اشاره، تکیه، دراب، تحریر و مالش هنگام پخش نمونه گوشه"
-              className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-2 text-xs font-bold transition ${
-                enableOrnaments
-                  ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                  : 'border-slate-300 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
-              }`}
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              زینت زنده
-            </button>
+            {studioCfg.showOrnamentsToggle && (
+              <button
+                type="button"
+                onClick={() => setEnableOrnaments((v) => !v)}
+                title="اجرای واقعی ریز، اشاره، تکیه، دراب، تحریر و مالش هنگام پخش نمونه گوشه"
+                className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-2 text-xs font-bold transition ${
+                  enableOrnaments
+                    ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                    : 'border-slate-300 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
+                }`}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                زینت زنده
+              </button>
+            )}
 
             {/* Feature 4: Wait Mode ("صبر کن تا درست بنوازی") */}
-            <button
-              type="button"
-              onClick={toggleWaitMode}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-extrabold transition ${
-                waitMode.enabled
-                  ? 'bg-violet-600 text-white shadow'
-                  : 'bg-violet-500/15 text-violet-700 hover:bg-violet-500/25 dark:text-violet-300'
-              }`}
-            >
-              <PauseCircle className="h-3.5 w-3.5" />
-              {waitMode.enabled ? 'صبر تا کوک دقیق (فعال)' : 'حالت صبر تا درست بنوازی'}
-            </button>
+            {studioCfg.showWaitModeButton && (
+              <button
+                type="button"
+                onClick={toggleWaitMode}
+                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-extrabold transition ${
+                  waitMode.enabled
+                    ? 'bg-violet-600 text-white shadow'
+                    : 'bg-violet-500/15 text-violet-700 hover:bg-violet-500/25 dark:text-violet-300'
+                }`}
+              >
+                <PauseCircle className="h-3.5 w-3.5" />
+                {waitMode.enabled ? 'صبر تا کوک دقیق (فعال)' : 'حالت صبر تا درست بنوازی'}
+              </button>
+            )}
 
             <button
               type="button"
@@ -1314,33 +1330,37 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
                 : 'تکرار با استاد (R)'}
             </button>
 
-            <button
-              type="button"
-              onClick={toggleHandsFree}
-              title="چرخه خودکار بدون دست: استاد → شمارش ۳-۲-۱ → اجرا → امتیاز و گوشه بعد"
-              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-extrabold transition ${
-                handsFreeActive
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
-                  : 'border border-indigo-500/40 bg-indigo-500/12 text-indigo-700 hover:bg-indigo-500/20 dark:text-indigo-300'
-              }`}
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${handsFreeActive ? 'animate-spin' : ''}`} />
-              {handsFreeActive ? 'توقف حالت بدون دست' : 'تمرین بدون دست'}
-            </button>
+            {studioCfg.showHandsFreeButton && (
+              <button
+                type="button"
+                onClick={toggleHandsFree}
+                title="چرخه خودکار بدون دست: استاد → شمارش ۳-۲-۱ → اجرا → امتیاز و گوشه بعد"
+                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-extrabold transition ${
+                  handsFreeActive
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
+                    : 'border border-indigo-500/40 bg-indigo-500/12 text-indigo-700 hover:bg-indigo-500/20 dark:text-indigo-300'
+                }`}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${handsFreeActive ? 'animate-spin' : ''}`} />
+                {handsFreeActive ? 'توقف حالت بدون دست' : 'تمرین بدون دست'}
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => setPedalPanelOpen((v) => !v)}
-              title="تنظیم پدال بلوتوثی پا (AirTurn / PageFlip) و کلیدهای میانبر"
-              className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-2 text-xs font-bold transition ${
-                pedalPanelOpen || footPedalEnabled
-                  ? 'border-sky-500/45 bg-sky-500/12 text-sky-700 dark:text-sky-300'
-                  : 'border-slate-300 text-slate-600 dark:border-slate-700 dark:text-slate-300'
-              }`}
-            >
-              <Footprints className="h-3.5 w-3.5" />
-              <span className="hidden xl:inline">پدال پا</span>
-            </button>
+            {studioCfg.showFootPedalButton && (
+              <button
+                type="button"
+                onClick={() => setPedalPanelOpen((v) => !v)}
+                title="تنظیم پدال بلوتوثی پا (AirTurn / PageFlip) و کلیدهای میانبر"
+                className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-2 text-xs font-bold transition ${
+                  pedalPanelOpen || footPedalEnabled
+                    ? 'border-sky-500/45 bg-sky-500/12 text-sky-700 dark:text-sky-300'
+                    : 'border-slate-300 text-slate-600 dark:border-slate-700 dark:text-slate-300'
+                }`}
+              >
+                <Footprints className="h-3.5 w-3.5" />
+                <span className="hidden xl:inline">پدال پا</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -1387,28 +1407,32 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                onChangeKoronMode(koronMode === 'standard_50' ? 'traditional_56' : 'standard_50')
-              }
-              className="rounded-lg border border-teal-500/35 bg-teal-500/12 px-2.5 py-1 text-[11px] font-bold text-teal-700 dark:text-teal-300"
-            >
-              {koronMode === 'traditional_56' ? 'کُرُن سنتی (-۵۶¢)' : 'کُرُن استاندارد (-۵۰¢)'}
-            </button>
+            {studioCfg.showKoronModeToggle && (
+              <button
+                type="button"
+                onClick={() =>
+                  onChangeKoronMode(koronMode === 'standard_50' ? 'traditional_56' : 'standard_50')
+                }
+                className="rounded-lg border border-teal-500/35 bg-teal-500/12 px-2.5 py-1 text-[11px] font-bold text-teal-700 dark:text-teal-300"
+              >
+                {koronMode === 'traditional_56' ? 'کُرُن سنتی (-۵۶¢)' : 'کُرُن استاندارد (-۵۰¢)'}
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => setTranspositionPanelOpen((v) => !v)}
-              className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition ${
-                transposeSemitones !== 0 || transpositionPanelOpen
-                  ? 'border-amber-500 bg-amber-500/15 text-amber-700 dark:text-amber-300'
-                  : 'border-slate-300 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
-              }`}
-            >
-              <Sliders className="h-3 w-3" />
-              کوک و ترانسپوز ({formatSemitoneShiftFa(transposeSemitones)})
-            </button>
+            {studioCfg.showTranspositionToggle && (
+              <button
+                type="button"
+                onClick={() => setTranspositionPanelOpen((v) => !v)}
+                className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition ${
+                  transposeSemitones !== 0 || transpositionPanelOpen
+                    ? 'border-amber-500 bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                    : 'border-slate-300 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
+                }`}
+              >
+                <Sliders className="h-3 w-3" />
+                کوک و ترانسپوز ({formatSemitoneShiftFa(transposeSemitones)})
+              </button>
+            )}
 
             <span className="hidden text-[11px] text-slate-500 xl:inline dark:text-slate-400">
               آغاز: {formatNoteFa(effectiveGusheh.aghaz)}
@@ -1638,7 +1662,8 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
                 durationSec: 0.9,
                 a4Hz,
                 koronMode,
-                ornament: note.ornament,
+                ornament: enableOrnaments ? note.ornament : undefined,
+                enableOrnaments,
               });
             }}
             onSetLoopStart={setLoopStart}
@@ -1660,18 +1685,20 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
       </div>
 
       {/* Feature 2: Real-Time Microtonal Pitch Contour / Piano-Roll */}
-      <PitchContourCanvas
-        gusheh={effectiveGusheh}
-        a4Hz={a4Hz}
-        koronMode={koronMode}
-        pitchFrame={pitchFrame}
-        micActive={micActive}
-        externalFreqHz={midiFreqHz}
-        activeNoteIndex={activeNoteIndex}
-      />
+      {studioCfg.showPitchContour && (
+        <PitchContourCanvas
+          gusheh={effectiveGusheh}
+          a4Hz={a4Hz}
+          koronMode={koronMode}
+          pitchFrame={pitchFrame}
+          micActive={micActive}
+          externalFreqHz={midiFreqHz}
+          activeNoteIndex={activeNoteIndex}
+        />
+      )}
 
-      {/* Modular Studio Workbench Tabs (Classic + Phase 1, 2 & 3 Master Conservatory Tools) */}
-      <div className="flex flex-wrap gap-1.5 rounded-2xl border border-slate-200/80 bg-white/85 p-1.5 dark:border-slate-800 dark:bg-slate-900/85">
+      {/* Modular Studio Workbench Tabs (Filtered by Workspace Mode: Lite / Standard / Full) */}
+      <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-white/85 p-1.5 dark:border-slate-800 dark:bg-slate-900/85">
         {(
           [
             { id: 'bridge', labelFa: 'پل بصری و انگشت‌گذاری' },
@@ -1695,20 +1722,45 @@ export const PracticeStudioView: React.FC<PracticeStudioViewProps> = ({
             { id: 'fft', labelFa: isPro ? 'FFT زیرسنت' : 'FFT (Pro)' },
             { id: 'recorder', labelFa: 'ضبط و مقایسه' },
           ] as const
-        ).map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveToolTab(tab.id)}
-            className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
-              activeToolTab === tab.id
-                ? 'bg-teal-600 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
-            }`}
-          >
-            {tab.labelFa}
-          </button>
-        ))}
+        )
+          .filter((tab) => modeConfig.allowedStudioTools.includes(tab.id))
+          .map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveToolTab(tab.id)}
+              className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
+                activeToolTab === tab.id
+                  ? 'bg-teal-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+              }`}
+            >
+              {tab.labelFa}
+            </button>
+          ))}
+
+        {hiddenStudioToolCount > 0 && (
+          <div className="mr-auto flex flex-wrap items-center gap-1.5">
+            {workspaceMode === 'lite' && (
+              <button
+                type="button"
+                onClick={() => onChangeWorkspaceMode('standard')}
+                className="inline-flex items-center gap-1 rounded-xl border border-dashed border-sky-500/45 bg-sky-500/10 px-2.5 py-2 text-[11px] font-bold text-sky-700 transition hover:bg-sky-500/20 dark:text-sky-300 cursor-pointer"
+              >
+                <Layers className="h-3.5 w-3.5" />
+                +۷ ابزار متوسط
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => onChangeWorkspaceMode('full')}
+              className="inline-flex items-center gap-1 rounded-xl border border-dashed border-teal-500/45 bg-teal-500/10 px-2.5 py-2 text-[11px] font-bold text-teal-700 transition hover:bg-teal-500/20 dark:text-teal-300 cursor-pointer"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              +{toPersianDigits(hiddenStudioToolCount)} ابزار دیگر در حالت کامل
+            </button>
+          </div>
+        )}
       </div>
 
       {activeToolTab === 'bridge' && (

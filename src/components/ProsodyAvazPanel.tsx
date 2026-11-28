@@ -53,7 +53,7 @@ export const ProsodyAvazPanel: React.FC<ProsodyAvazPanelProps> = ({
       startIndex: 0,
       endIndex: gusheh.melody.length - 1,
       loop: false,
-      enableOrnaments: true,
+      enableOrnaments: false,
       scale: gusheh.scale,
       onNoteStart: (idx) => setActiveSlotIdx(idx),
       onComplete: () => {
@@ -156,7 +156,7 @@ export const ProsodyAvazPanel: React.FC<ProsodyAvazPanelProps> = ({
                   durationSec: 0.75,
                   a4Hz,
                   koronMode,
-                  ornament: slot.isTahrirStart ? 'tahrir' : slot.note.ornament,
+                  enableOrnaments: false,
                   scale: gusheh.scale,
                 });
               }}

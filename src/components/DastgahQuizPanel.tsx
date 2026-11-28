@@ -71,7 +71,7 @@ export const DastgahQuizPanel: React.FC<DastgahQuizPanelProps> = ({
       startIndex: 0,
       endIndex: Math.min(7, q.targetGusheh.melody.length - 1),
       loop: false,
-      enableOrnaments: true,
+      enableOrnaments: false,
       scale: q.targetGusheh.scale,
       onComplete: () => setIsPlaying(false),
     });

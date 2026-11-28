@@ -95,6 +95,7 @@ export const ClassicalPiecesPanel: React.FC<ClassicalPiecesPanelProps> = ({
           durationSec: Math.max(0.25, (beatMs / 1000) * 0.95),
           a4Hz,
           koronMode,
+          enableOrnaments: false,
         });
       }, idx * beatMs);
       timersRef.current.push(tId);

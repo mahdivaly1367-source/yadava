@@ -292,6 +292,8 @@ describe('Real Studio Acoustic Sample Bank v2.5, 14-Mode Body IR Convolution & M
     setAcousticSculptSettings({ ...DEFAULT_ACOUSTIC_SCULPT });
     expect(getAcousticSculptSettings().engineMode).toBe('hybrid_studio');
     expect(getAcousticSculptSettings().santurMallet).toBe('felt');
+    expect(getAcousticSculptSettings().legatoMalesh).toBe(false);
+    expect(getAcousticSculptSettings().vibratoExpression).toBe(0);
 
     expect(REAL_SAMPLE_CREDITS).toHaveLength(3);
     expect(REAL_SAMPLE_CREDITS.some((c) => c.license === 'CC BY 3.0')).toBe(true);

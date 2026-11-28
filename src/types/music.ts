@@ -25,6 +25,8 @@ export type LearnerLevel = 'beginner' | 'intermediate' | 'advanced';
 
 export type AppTab = 'dashboard' | 'studio' | 'explorer' | 'modulation' | 'community';
 
+export type WorkspaceMode = 'lite' | 'standard' | 'full';
+
 export interface PersianNoteSpec {
   letter: NoteLetter;
   accidental: Accidental;

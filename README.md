@@ -29,7 +29,7 @@
   - قواعد امنیتی سخت‌گیرانه `firestore.rules` هم‌خوان با `firebase-blueprint.json`، دیتابیس نام‌گذاری‌شده `navanegar-db` با `experimentalForceLongPolling: true`، `writeBatch` اتمیک و ضدجعل `replyCount` با `lastReplyId` (`!exists && existsAfter && getAfter`).
 - **فریمیوم و پرداخت دو مارکت اندروید (کافه‌بازار و مایکت)**:
   - **رایگان همیشگی**: شور + ابوعطا + ماهور (**۴۳ گوشه**)، تیونر، مترونوم، تعیین سطح و ذخیره تا ۲ قطعه.
-  - **نسخه حرفه‌ای (Pro)**: `navanegar_pro_lifetime` (۲۴۹٬۰۰۰ تومان) و `navanegar_pro_quarterly` (اشتراک ۹۰ روزه ۹۹٬۰۰۰ تومان).
+  - **نسخه حرفه‌ای (Pro)**: `navanegar_pro_lifetime` (۲۹۹٬۰۰۰ تومان با تخفیف انتشار از ۴۴۹٬۰۰۰ تومان) و `navanegar_pro_quarterly` (اشتراک ۹۰ روزه ۱۴۹٬۰۰۰ تومان از ۱۸۹٬۰۰۰ تومان).
   - Flavor مجزای `bazaar` (`Poolakey 2.2.0` با اجبار امضای RSA در Release) و `myket` (`ir.myket:billing:2.2` با بررسی `subscriptionsSupported()`).
   - دسترسی میکروفون (`RECORD_AUDIO`) فقط به‌صورت **Just-In-Time** هنگام استفاده واقعی (بدون درخواست پیش‌دستانه در `MainActivity.onCreate`).
 

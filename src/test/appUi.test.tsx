@@ -136,6 +136,37 @@ describe('Navanegar App Integration UI Smoke Test', () => {
     fireEvent.click(screen.getAllByText('انجمن زنده')[0]);
     expect((await screen.findAllByText(/انجمن|ضبط/)).length).toBeGreaterThan(0);
 
+    // 6. Workspace Mode Switcher: Full -> Lite -> Standard -> Full
+    fireEvent.click(screen.getByLabelText(/تغییر حالت نمایش امکانات/));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /حالت سبک/ }));
+    // Community is not allowed in Lite -> auto-redirects to Dashboard, hides EarTraining & Community
+    await waitFor(() => {
+      expect(screen.getByText(/برنامه تمرین روزانه ۱۵ دقیقه‌ای تطبیقی/)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/آکادمی اختصاصی تربیت گوش ربع‌پرده/)).not.toBeInTheDocument();
+    expect(screen.queryByText('انجمن زنده')).not.toBeInTheDocument();
+    expect(screen.queryByText('نقشه مدولاسیون')).not.toBeInTheDocument();
+    expect(screen.getByText(/تصنیف‌خانه، پیش‌درآمد، چهارمضراب و رنگ/)).toBeInTheDocument();
+
+    // Check Studio in Lite mode: only core tools + expand buttons
+    fireEvent.click(screen.getAllByText('کارگاه تمرین')[0]);
+    expect(await screen.findByText(/عقربه سنت زنده/)).toBeInTheDocument();
+    expect(screen.getByText('تیونر ساز')).toBeInTheDocument();
+    expect(screen.queryByText('کیبورد MIDI / OTG')).not.toBeInTheDocument();
+    expect(screen.getByText(/\+۱۴ ابزار دیگر در حالت کامل/)).toBeInTheDocument();
+
+    // Expand from Lite -> Standard via inline studio chip
+    fireEvent.click(screen.getByText(/\+۷ ابزار متوسط/));
+    expect(screen.getByText('آواز و تقطیع عروضی')).toBeInTheDocument();
+    expect(screen.getAllByText('نقشه مدولاسیون').length).toBeGreaterThan(0);
+    expect(screen.queryByText('انجمن زنده')).not.toBeInTheDocument();
+    expect(screen.queryByText('کیبورد MIDI / OTG')).not.toBeInTheDocument();
+
+    // Expand from Standard -> Full via inline studio chip
+    fireEvent.click(screen.getByText(/\+۷ ابزار دیگر در حالت کامل/));
+    expect(screen.getByText('کیبورد MIDI / OTG')).toBeInTheDocument();
+    expect(screen.getAllByText('انجمن زنده').length).toBeGreaterThan(0);
+
     expect(errorSpy).not.toHaveBeenCalled();
     errorSpy.mockRestore();
   }, 20000);
